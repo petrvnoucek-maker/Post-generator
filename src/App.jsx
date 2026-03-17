@@ -142,6 +142,7 @@ export default function App() {
   const [textPos, setTextPos]       = useState("bottom");
   const [fontFamily, setFontFamily] = useState("Inter");
   const [fontScale, setFontScale]   = useState(1.0);
+  const [advOpen, setAdvOpen]       = useState(false);
   const [bgMode, setBgMode]         = useState("template1");
   const [logoVariant, setLogoVariant] = useState("white");
   const [customSub, setCustomSub]   = useState("color");
@@ -244,74 +245,81 @@ export default function App() {
         <label style={lbl}>Perex</label>
         <textarea value={subtext} onChange={e => setSubtext(e.target.value)} style={{ ...inp, height: 68, resize: "vertical" }} />
 
-        {/* Font */}
-        <label style={lbl}>Font</label>
-        <select value={fontFamily} onChange={e => setFontFamily(e.target.value)} style={inp}>
-          {FONTS.map(f => <option key={f}>{f}</option>)}
-        </select>
+        {/* Advanced collapsible */}
+        <button onClick={() => setAdvOpen(o => !o)} style={{
+          width: "100%", marginTop: 14, padding: "8px 10px", borderRadius: 7,
+          border: `1px solid ${advOpen ? UI : "#ddd"}`, background: advOpen ? "#EFF6FF" : "#fafafa",
+          cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center",
+          fontSize: 12, fontWeight: 600, color: advOpen ? UI : "#555"
+        }}>
+          <span>Pokročilé nastavení</span>
+          <span style={{ fontSize: 10, transition: "transform .2s", display: "inline-block", transform: advOpen ? "rotate(180deg)" : "none" }}>▼</span>
+        </button>
 
-        {/* Font size */}
-        <label style={lbl}>Velikost písma</label>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={() => setFontScale(s => Math.max(0.5, Math.round((s - 0.1) * 10) / 10))}
-            style={{ ...mkBtn(false), width: 30, padding: "4px 0", fontSize: 16, textAlign: "center" }}>−</button>
-          <input type="range" min="0.5" max="2.0" step="0.05" value={fontScale}
-            onChange={e => setFontScale(parseFloat(e.target.value))}
-            style={{ flex: 1 }} />
-          <button onClick={() => setFontScale(s => Math.min(2.0, Math.round((s + 0.1) * 10) / 10))}
-            style={{ ...mkBtn(false), width: 30, padding: "4px 0", fontSize: 16, textAlign: "center" }}>+</button>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2 }}>
-          <span style={{ fontSize: 11, color: "#888" }}>{Math.round(fontScale * 100)} %</span>
-          <button onClick={() => setFontScale(1.0)}
-            style={{ fontSize: 10, color: UI, background: "none", border: "none", cursor: "pointer", padding: 0 }}>reset</button>
-        </div>
+        {advOpen && <div style={{ marginTop: 4, padding: "10px 10px 4px", background: "#fafafa", borderRadius: 7, border: "1px solid #eee" }}>
+          {/* Font */}
+          <label style={lbl}>Font</label>
+          <select value={fontFamily} onChange={e => setFontFamily(e.target.value)} style={inp}>
+            {FONTS.map(f => <option key={f}>{f}</option>)}
+          </select>
 
-        {/* Alignment — hidden for template2 */}
-        {bgMode !== "template2" && <>
-          <label style={lbl}>Zarovnání</label>
+          {/* Font size */}
+          <label style={lbl}>Velikost písma</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={() => setFontScale(s => Math.max(0.5, Math.round((s - 0.1) * 10) / 10))}
+              style={{ ...mkBtn(false), width: 30, padding: "4px 0", fontSize: 16, textAlign: "center" }}>−</button>
+            <input type="range" min="0.5" max="2.0" step="0.05" value={fontScale}
+              onChange={e => setFontScale(parseFloat(e.target.value))} style={{ flex: 1 }} />
+            <button onClick={() => setFontScale(s => Math.min(2.0, Math.round((s + 0.1) * 10) / 10))}
+              style={{ ...mkBtn(false), width: 30, padding: "4px 0", fontSize: 16, textAlign: "center" }}>+</button>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2, marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: "#888" }}>{Math.round(fontScale * 100)} %</span>
+            <button onClick={() => setFontScale(1.0)}
+              style={{ fontSize: 10, color: UI, background: "none", border: "none", cursor: "pointer", padding: 0 }}>reset</button>
+          </div>
+
+          {/* Alignment — hidden for template2 */}
+          {bgMode !== "template2" && <>
+            <label style={lbl}>Zarovnání</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v, ic]) => (
+                <button key={v} onClick={() => setTextAlign(v)} style={{ ...mkBtn(textAlign === v), flex: 1, fontSize: 14 }}>{ic}</button>
+              ))}
+            </div>
+          </>}
+
+          {/* Text position */}
+          <label style={lbl}>Pozice textu</label>
           <div style={{ display: "flex", gap: 6 }}>
-            {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v, ic]) => (
-              <button key={v} onClick={() => setTextAlign(v)} style={{ ...mkBtn(textAlign === v), flex: 1, fontSize: 14 }}>{ic}</button>
+            {[["top","Nahoře"],["center","Střed"],["bottom","Dole"]].map(([v, l]) => (
+              <button key={v} onClick={() => setTextPos(v)} style={{ ...mkBtn(textPos === v), flex: 1, fontSize: 11 }}>{l}</button>
             ))}
           </div>
-        </>}
 
-        {/* Text position */}
-        <label style={lbl}>Pozice textu</label>
-        <div style={{ display: "flex", gap: 6 }}>
-          {[["top","Nahoře"],["center","Střed"],["bottom","Dole"]].map(([v, l]) => (
-            <button key={v} onClick={() => setTextPos(v)} style={{ ...mkBtn(textPos === v), flex: 1, fontSize: 11 }}>{l}</button>
-          ))}
-        </div>
+          {/* Text color */}
+          <label style={lbl}>Barva textu</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)}
+              style={{ width: 34, height: 28, padding: 2, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer" }} />
+            <span style={{ fontSize: 12, color: "#888" }}>{textColor}</span>
+          </div>
 
-        {/* Text color */}
-        <label style={lbl}>Barva textu</label>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)}
-            style={{ width: 34, height: 28, padding: 2, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer" }} />
-          <span style={{ fontSize: 12, color: "#888" }}>{textColor}</span>
-        </div>
-
-        {/* Logo variant */}
-        <label style={lbl}>Logo</label>
-        <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
-          {[
-            ["white", "⬤", "#fff", "#2B5F9E", "Bílé"],
-            ["black", "⬤", "#111", "#fff",    "Černé"],
-            ["blue",  "⬤", UI,    "#fff",    "Modré"],
-          ].map(([v, ic, bg, fg, label]) => (
-            <button key={v} onClick={() => setLogoVariant(v)} style={{
-              ...mkBtn(logoVariant === v), flex: 1, fontSize: 11,
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 4px"
-            }}>
-              <span style={{ width: 20, height: 20, borderRadius: "50%", background: bg,
-                border: "1.5px solid #ccc", display: "flex", alignItems: "center",
-                justifyContent: "center", fontSize: 11, color: fg, fontWeight: 700, lineHeight: 1 }}>A</span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
+          {/* Logo variant */}
+          <label style={lbl}>Logo</label>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            {[["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"],["blue",UI,"#fff","Modré"]].map(([v, bg, fg, lab]) => (
+              <button key={v} onClick={() => setLogoVariant(v)} style={{
+                ...mkBtn(logoVariant === v), flex: 1, fontSize: 11,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 4px"
+              }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", background: bg, border: "1.5px solid #ccc",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: fg, fontWeight: 700 }}>A</span>
+                <span>{lab}</span>
+              </button>
+            ))}
+          </div>
+        </div>}
 
         {/* Background templates */}
         <label style={lbl}>Pozadí / šablona</label>
