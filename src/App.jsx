@@ -1,15 +1,9 @@
 import { useState, useRef, useEffect, useCallback, useReducer } from "react";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SECURITY CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
 const ALLOWED_MIME   = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_DPR        = 3;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
 const FORMATS = [
   { id: "social",  label: "IG / FB / X", sub: "4:5",  w: 1200, h: 1500 },
   { id: "square",  label: "Čtvercový",   sub: "1:1",  w: 1200, h: 1200 },
@@ -29,18 +23,12 @@ const DEFAULTS = {
   fmt: FORMATS[0], advancedOpen: false,
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REDUCER
-// ─────────────────────────────────────────────────────────────────────────────
 function reducer(state, action) {
   if (action.type === "RESET") return { ...DEFAULTS };
   if (action.type === "SET")   return { ...state, [action.key]: action.value };
   return state;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MEASUREMENT CANVAS — lazy singleton, documented intentional
-// ─────────────────────────────────────────────────────────────────────────────
 const getMeasureCtx = (() => {
   let ctx = null;
   return () => { if (!ctx) ctx = document.createElement("canvas").getContext("2d"); return ctx; };
@@ -60,9 +48,6 @@ function wrapLines(fontStr, text, maxW) {
   return lines;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DRAW UTILITIES
-// ─────────────────────────────────────────────────────────────────────────────
 function drawLogoOnCanvas(ctx, cx, cy, r, variant) {
   const circleFill = variant === "black" ? "#111111" : variant === "blue" ? UI : "#ffffff";
   const aFill      = variant === "white" ? "#2B5F9E" : "#ffffff";
@@ -115,9 +100,6 @@ function drawPhotoPlaceholder(ctx, areaX, areaY, areaW, areaH) {
   ctx.restore();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATE DRAW FUNCTIONS
-// ─────────────────────────────────────────────────────────────────────────────
 function drawTemplateRich(ctx, w, h, opts) {
   const { bgImage, headline, subtext, supertitle, fontFamily, fontScale,
           logoVariant, richVariant, richPhotoPos, richPanelColor } = opts;
@@ -215,9 +197,6 @@ function renderToCanvas(canvas, fmt, opts) {
   ctx.restore();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STYLE HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
 const S = {
   inp:         { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #ddd", boxSizing: "border-box", fontSize: 13, fontFamily: "Inter, system-ui, sans-serif" },
   lbl:         { display: "block", fontSize: 11, fontWeight: 600, color: "#555", marginBottom: 4, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.05em" },
@@ -227,23 +206,20 @@ const S = {
 const mkBtn  = (active, color = UI) => ({ padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all .15s", background: active ? color : "#f0f0f0", color: active ? "#fff" : "#444" });
 const tplBtn = (bgMode, id) => ({ ...mkBtn(bgMode === id), padding: "9px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENTS
-// ─────────────────────────────────────────────────────────────────────────────
 function AdvancedSettings({ st, dispatch }) {
-  const open   = st.advancedOpen;
+  const open    = st.advancedOpen;
   const setOpen = val => dispatch({ type: "SET", key: "advancedOpen", value: val });
-  const set    = (key, val) => dispatch({ type: "SET", key, value: val });
+  const set     = (key, val) => dispatch({ type: "SET", key, value: val });
   return (
     <>
-      <button onClick={() => setOpen(!open)} style={{ width: "100%", marginTop: 10, padding: "8px 10px", borderRadius: 7, border: `1px solid ${open ? UI : "#ddd"}`, background: open ? "#EFF6FF" : "#fafafa", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, fontWeight: 600, color: open ? UI : "#555" }}>
+      <button onClick={() => setOpen(!open)} style={{ width:"100%", marginTop:10, padding:"8px 10px", borderRadius:7, border:`1px solid ${open ? UI : "#ddd"}`, background: open ? "#EFF6FF" : "#fafafa", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontWeight:600, color: open ? UI : "#555" }}>
         <span>Pokročilé nastavení</span>
-        <span style={{ fontSize: 10, display: "inline-block", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
+        <span style={{ fontSize:10, display:"inline-block", transform: open ? "rotate(180deg)" : "none", transition:"transform .2s" }}>▼</span>
       </button>
       {open && (
-        <div style={{ marginTop: 4, padding: "10px 10px 4px", background: "#fafafa", borderRadius: 7, border: "1px solid #eee" }}>
+        <div style={{ marginTop:4, padding:"10px 10px 4px", background:"#fafafa", borderRadius:7, border:"1px solid #eee" }}>
           <div style={S.lbl}>Logo</div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+          <div style={{ display:"flex", gap:6, marginBottom:6 }}>
             {[["blue",UI,"#fff","Modré"],["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"]].map(([v,bg,fg,lab]) => (
               <button key={v} onClick={() => set("logoVariant", v)} style={{ ...mkBtn(st.logoVariant===v), flex:1, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 4px" }}>
                 <span style={{ width:20, height:20, borderRadius:"50%", background:bg, border:"1.5px solid #ccc", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:fg, fontWeight:700 }}>A</span>
@@ -279,7 +255,7 @@ function AdvancedSettings({ st, dispatch }) {
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:2, marginBottom:4 }}>
             <span style={{ fontSize:11, color:"#888" }}>{Math.round(st.fontScale*100)} %</span>
-            <button onClick={() => set("fontScale",1.0)} style={{ fontSize:10, color:UI, background:"none", border:"none", cursor:"pointer", padding:0 }}>reset</button>
+            <button onClick={() => set("fontScale", 1.0)} style={{ fontSize:10, color:UI, background:"none", border:"none", cursor:"pointer", padding:0 }}>reset</button>
           </div>
           {st.bgMode !== "template3" && (<>
             <div style={S.lbl}>Barva textu</div>
@@ -344,7 +320,7 @@ function CustomControls({ st, dispatch, onImageUpload }) {
   );
 }
 
-function Controls({ st, dispatch, onImageUpload, autoResize }) {
+function Controls({ st, dispatch, onImageUpload, autoResize, selectAll }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
   return (
     <>
@@ -359,12 +335,12 @@ function Controls({ st, dispatch, onImageUpload, autoResize }) {
       </div>
       {st.bgMode === "template3" && (<>
         <label style={S.lbl}>Nadtitulek</label>
-        <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} placeholder="Volitelný nadtitulek…" style={{ ...S.inp, height:36, resize:"none", overflow:"hidden" }} />
+        <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný nadtitulek…" style={{ ...S.inp, height:36, resize:"none", overflow:"hidden" }} />
       </>)}
       <label style={S.lbl}>Titulek</label>
-      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} style={{ ...S.inp, height:64, resize:"none", overflow:"hidden" }} />
+      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...S.inp, height:64, resize:"none", overflow:"hidden" }} />
       <label style={S.lbl}>Perex</label>
-      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} placeholder="Volitelný perex…" style={{ ...S.inp, height:52, resize:"none", overflow:"hidden" }} />
+      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...S.inp, height:52, resize:"none", overflow:"hidden" }} />
       <div style={{ ...S.lbl, marginTop:14 }}>Pozadí / šablona</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
         <button onClick={() => set("bgMode","template2")} style={tplBtn(st.bgMode,"template2")}>
@@ -420,9 +396,6 @@ function AppHeader({ logoCanvasRef }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// APP
-// ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [st, dispatch]                  = useReducer(reducer, DEFAULTS);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -431,8 +404,6 @@ export default function App() {
   const canvasRef     = useRef(null);
   const imgRef        = useRef(null);
   const logoCanvasRef = useRef(null);
-  // imgRef-only stRef — used solely in async image upload handler
-  const imgForOpts    = useRef(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -440,7 +411,6 @@ export default function App() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Fix #4: guard against duplicate font link in StrictMode
   useEffect(() => {
     if (document.querySelector('link[href*="Inter"]')) return;
     const link = document.createElement("link");
@@ -449,9 +419,6 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  // ── buildOpts reads directly from st — recreates on every state change ──
-  // This is intentional: correctness > micro-optimisation.
-  // isMobile intentionally excluded — layout change triggers its own redraw below.
   const effectiveBgMode = st.bgMode === "custom"
     ? (st.customSub === "image" ? "image" : "color") : st.bgMode;
 
@@ -479,7 +446,6 @@ export default function App() {
     drawLogoOnCanvas(ctx, size/2, size/2, size/2 - 1, "blue");
   }, []);
 
-  // Redraw whenever state changes or layout switches
   useEffect(() => { redraw(); }, [redraw]);
   useEffect(() => { redraw(); }, [isMobile]);
 
@@ -491,11 +457,11 @@ export default function App() {
   }, []);
 
   const autoResize = e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; };
+  const selectAll  = e => { const t = e.target; setTimeout(() => t.select(), 0); };
 
   const handleImageUpload = useCallback((e, isRich = false) => {
     const file  = e.target.files?.[0]; if (!file) return;
-    const input = e.target; // Fix #2: capture before async
-
+    const input = e.target;
     if (!ALLOWED_MIME.includes(file.type)) {
       alert("Nepodporovaný formát souboru.\nPovolené typy: JPEG, PNG, WebP, GIF.");
       input.value = ""; return;
@@ -522,7 +488,6 @@ export default function App() {
           dispatch({ type: "SET", key: "bgMode",    value: "custom" });
           dispatch({ type: "SET", key: "customSub", value: "image"  });
         }
-        // Render immediately with explicit opts — don't wait for state settle
         renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides });
       };
       img.onerror = () => { alert("Obrázek se nepodařilo načíst. Zkuste jiný soubor."); input.value = ""; };
@@ -532,7 +497,6 @@ export default function App() {
     reader.readAsDataURL(file);
   }, [st.fmt, buildOpts]);
 
-  // Fix #6: synchronous reset — no race window between dispatch and export
   const doReset = () => {
     imgRef.current = null;
     dispatch({ type: "RESET" });
@@ -549,12 +513,11 @@ export default function App() {
     a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
   };
 
-  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize };
+  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll };
   const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:"#f4f5f7", minHeight:"100vh" }}>
-
       {confirmReset && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
           <div style={{ background:"#fff", borderRadius:12, padding:"28px 32px", width:300, textAlign:"center", boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }}>
@@ -567,7 +530,6 @@ export default function App() {
           </div>
         </div>
       )}
-
       {isMobile ? (
         <div style={{ display:"flex", flexDirection:"column" }}>
           <div style={{ background:"#fff", borderBottom:"1px solid #e6e6e6", padding:"14px 16px", position:"sticky", top:0, zIndex:10 }}>
