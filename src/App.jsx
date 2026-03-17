@@ -361,7 +361,7 @@ function Controls({ st, dispatch, onImageUpload, autoResize }) {
         <label style={S.lbl}>Nadtitulek</label>
         <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} placeholder="Volitelný nadtitulek…" style={{ ...S.inp, height:36, resize:"none", overflow:"hidden" }} />
       </>)}
-      <label style={S.lbl}>Nadpis</label>
+      <label style={S.lbl}>Titulek</label>
       <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} style={{ ...S.inp, height:64, resize:"none", overflow:"hidden" }} />
       <label style={S.lbl}>Perex</label>
       <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} placeholder="Volitelný perex…" style={{ ...S.inp, height:52, resize:"none", overflow:"hidden" }} />
