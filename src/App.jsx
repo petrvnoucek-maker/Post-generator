@@ -4,8 +4,12 @@ import { useState, useRef, useEffect, useCallback, useReducer } from "react";
 // SECURITY CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 const ALLOWED_MIME   = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
-const MAX_DPR        = 3;                // cap devicePixelRatio
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_DPR        = 3;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────────────────────
 const FORMATS = [
   { id: "social",  label: "IG / FB / X", sub: "4:5",  w: 1200, h: 1500 },
   { id: "square",  label: "Čtvercový",   sub: "1:1",  w: 1200, h: 1200 },
@@ -22,32 +26,26 @@ const DEFAULTS = {
   bgMode: "template2", logoVariant: "blue",
   customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.45,
   richVariant: "light", richPhotoPos: "top", richPanelColor: "#1B69BF",
-  fmt: FORMATS[0],
-  advancedOpen: false, // Fix #1: track panel state in reducer so reset closes it
+  fmt: FORMATS[0], advancedOpen: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATE REDUCER  (replaces 15× useState)
+// REDUCER
 // ─────────────────────────────────────────────────────────────────────────────
 function reducer(state, action) {
   if (action.type === "RESET") return { ...DEFAULTS };
   if (action.type === "SET")   return { ...state, [action.key]: action.value };
   return state;
 }
-function useField(dispatch, key) {
-  return useCallback(v => dispatch({ type: "SET", key, value: v }), [key]);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MEASUREMENT CANVAS — intentional module-level singleton, shared across renders
+// MEASUREMENT CANVAS — lazy singleton, documented intentional
 // ─────────────────────────────────────────────────────────────────────────────
 const getMeasureCtx = (() => {
   let ctx = null;
-  return () => {
-    if (!ctx) ctx = document.createElement("canvas").getContext("2d");
-    return ctx;
-  };
+  return () => { if (!ctx) ctx = document.createElement("canvas").getContext("2d"); return ctx; };
 })();
+
 function wrapLines(fontStr, text, maxW) {
   const MX = getMeasureCtx();
   MX.font = fontStr;
@@ -118,16 +116,14 @@ function drawPhotoPlaceholder(ctx, areaX, areaY, areaW, areaH) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATE DRAW FUNCTIONS  (🟡 split from monolithic drawPost)
+// TEMPLATE DRAW FUNCTIONS
 // ─────────────────────────────────────────────────────────────────────────────
 function drawTemplateRich(ctx, w, h, opts) {
   const { bgImage, headline, subtext, supertitle, fontFamily, fontScale,
           logoVariant, richVariant, richPhotoPos, richPanelColor } = opts;
-  const ff   = `${fontFamily}, Arial, sans-serif`;
-  const hs   = Math.round(w * 0.075 * fontScale);
-  const ss   = Math.round(w * 0.038 * fontScale);
-  const pad  = w * 0.08;
-  const maxW = w * 0.84;
+  const ff = `${fontFamily}, Arial, sans-serif`;
+  const hs = Math.round(w * 0.075 * fontScale), ss = Math.round(w * 0.038 * fontScale);
+  const pad = w * 0.08, maxW = w * 0.84;
   const photoH = Math.round(h * 0.55), panelH = h - photoH;
   const photoY = richPhotoPos === "top" ? 0 : panelH;
   const panelY = richPhotoPos === "top" ? photoH : 0;
@@ -137,11 +133,11 @@ function drawTemplateRich(ctx, w, h, opts) {
   else drawPhotoPlaceholder(ctx, 0, photoY, w, photoH);
   const textCol   = richVariant === "light" ? "#111111" : "#ffffff";
   const accentCol = richVariant === "light" ? UI : richVariant === "color" ? "#ffffff" : "#6AABF0";
-  const stSize  = Math.round(w * 0.034 * fontScale);
+  const stSize = Math.round(w * 0.034 * fontScale);
   const hasSuper = !!(supertitle && supertitle.trim());
-  const hLines  = wrapLines(`bold ${hs}px ${ff}`, headline, maxW);
-  const sLines  = subtext ? wrapLines(`${ss}px ${ff}`, subtext, maxW) : [];
-  const blockH  = (hasSuper ? stSize * 1.7 : 0) + hLines.length * hs * 1.28 + (sLines.length ? ss * 0.9 + sLines.length * ss * 1.4 : 0);
+  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, maxW) : [];
+  const blockH = (hasSuper ? stSize * 1.7 : 0) + hLines.length * hs * 1.28 + (sLines.length ? ss * 0.9 + sLines.length * ss * 1.4 : 0);
   let ty = panelY + Math.max(panelH * 0.13, (panelH - blockH) / 2);
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   if (hasSuper) { ctx.font = `bold ${stSize}px ${ff}`; ctx.fillStyle = accentCol; ctx.fillText(supertitle, pad, ty + stSize * 0.88); ty += stSize * 1.7; }
@@ -151,12 +147,10 @@ function drawTemplateRich(ctx, w, h, opts) {
   if (sLines.length) { ty += ss * 0.9; ctx.font = `${ss}px ${ff}`; ctx.globalAlpha = 0.72; sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * ss * 1.4 + ss * 0.88)); ctx.globalAlpha = 1; }
   drawLogo(ctx, w, h, logoVariant);
 }
-
 function drawTemplateBlack(ctx, w, h, opts) {
   const { headline, subtext, textColor, fontFamily, fontScale, textPos, logoVariant } = opts;
-  const ff   = `${fontFamily}, Arial, sans-serif`;
-  const hs   = Math.round(w * 0.075 * fontScale);
-  const ss   = Math.round(w * 0.038 * fontScale);
+  const ff = `${fontFamily}, Arial, sans-serif`;
+  const hs = Math.round(w * 0.075 * fontScale), ss = Math.round(w * 0.038 * fontScale);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
   const bx = w*0.07, bw2 = Math.max(4, w*0.007), textX = bx+bw2+w*0.04, tMaxW = w*0.76;
   const lh1 = hs*1.28, lh2 = ss*1.4;
@@ -171,16 +165,13 @@ function drawTemplateBlack(ctx, w, h, opts) {
   if (sLines.length) { ctx.font = `${ss}px ${ff}`; ctx.globalAlpha = 0.78; const sy2 = yBase+hLines.length*lh1+ss*1.1; sLines.forEach((l, i) => ctx.fillText(l, textX, sy2+i*lh2)); ctx.globalAlpha = 1; }
   drawLogo(ctx, w, h, logoVariant);
 }
-
 function drawTemplateStandard(ctx, w, h, opts) {
   const { bgMode, bgColor, bgImage, overlayOpacity,
           headline, subtext, textColor, fontFamily, fontScale,
           textAlign, textPos, logoVariant } = opts;
-  const ff   = `${fontFamily}, Arial, sans-serif`;
-  const hs   = Math.round(w * 0.075 * fontScale);
-  const ss   = Math.round(w * 0.038 * fontScale);
-  const pad  = w * 0.08;
-  const maxW = w * 0.84;
+  const ff = `${fontFamily}, Arial, sans-serif`;
+  const hs = Math.round(w * 0.075 * fontScale), ss = Math.round(w * 0.038 * fontScale);
+  const pad = w * 0.08, maxW = w * 0.84;
   if (bgMode === "template1") {
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, "#6B9FCC"); g.addColorStop(0.4, "#3A6EA8"); g.addColorStop(1, "#000810");
@@ -214,8 +205,8 @@ function drawPost(ctx, w, h, opts) {
 
 function renderToCanvas(canvas, fmt, opts) {
   const { w, h } = fmt;
-  const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR); // 🟡 fix: cap DPR
-  const s = Math.min(PREVIEW_MAX / w, PREVIEW_MAX / h);
+  const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+  const s   = Math.min(PREVIEW_MAX / w, PREVIEW_MAX / h);
   canvas.width  = Math.round(w * s * dpr); canvas.height = Math.round(h * s * dpr);
   canvas.style.width  = Math.round(w * s) + "px"; canvas.style.height = Math.round(h * s) + "px";
   const ctx = canvas.getContext("2d");
@@ -225,27 +216,27 @@ function renderToCanvas(canvas, fmt, opts) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARED STYLE HELPERS  (🟡 extracted from inline)
+// STYLE HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 const S = {
-  inp: { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #ddd", boxSizing: "border-box", fontSize: 13, fontFamily: "Inter, system-ui, sans-serif" },
-  lbl: { display: "block", fontSize: 11, fontWeight: 600, color: "#555", marginBottom: 4, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.05em" },
+  inp:         { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #ddd", boxSizing: "border-box", fontSize: 13, fontFamily: "Inter, system-ui, sans-serif" },
+  lbl:         { display: "block", fontSize: 11, fontWeight: 600, color: "#555", marginBottom: 4, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.05em" },
   uploadLabel: { display: "block", background: "#fff", border: "1px dashed #ccc", borderRadius: 6, padding: "8px 12px", textAlign: "center", cursor: "pointer", fontSize: 12, color: "#555" },
-  card: { background: "#f8f8f8", borderRadius: 8, padding: 10, marginBottom: 4 },
+  card:        { background: "#f8f8f8", borderRadius: 8, padding: 10, marginBottom: 4 },
 };
-const mkBtn = (active, color = UI) => ({ padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all .15s", background: active ? color : "#f0f0f0", color: active ? "#fff" : "#444" });
+const mkBtn  = (active, color = UI) => ({ padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all .15s", background: active ? color : "#f0f0f0", color: active ? "#fff" : "#444" });
 const tplBtn = (bgMode, id) => ({ ...mkBtn(bgMode === id), padding: "9px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENTS  (🔴 fix: Controls extracted from App)
+// SUB-COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 function AdvancedSettings({ st, dispatch }) {
-  const open = st.advancedOpen;
+  const open   = st.advancedOpen;
   const setOpen = val => dispatch({ type: "SET", key: "advancedOpen", value: val });
-  const set = (key, val) => dispatch({ type: "SET", key, value: val });
+  const set    = (key, val) => dispatch({ type: "SET", key, value: val });
   return (
     <>
-      <button onClick={() => setOpen(o => !o)} style={{ width: "100%", marginTop: 10, padding: "8px 10px", borderRadius: 7, border: `1px solid ${open ? UI : "#ddd"}`, background: open ? "#EFF6FF" : "#fafafa", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, fontWeight: 600, color: open ? UI : "#555" }}>
+      <button onClick={() => setOpen(!open)} style={{ width: "100%", marginTop: 10, padding: "8px 10px", borderRadius: 7, border: `1px solid ${open ? UI : "#ddd"}`, background: open ? "#EFF6FF" : "#fafafa", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, fontWeight: 600, color: open ? UI : "#555" }}>
         <span>Pokročilé nastavení</span>
         <span style={{ fontSize: 10, display: "inline-block", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
       </button>
@@ -253,56 +244,50 @@ function AdvancedSettings({ st, dispatch }) {
         <div style={{ marginTop: 4, padding: "10px 10px 4px", background: "#fafafa", borderRadius: 7, border: "1px solid #eee" }}>
           <div style={S.lbl}>Logo</div>
           <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-            {[["blue",UI,"#fff","Modré"],["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"]].map(([v, bg, fg, lab]) => (
-              <button key={v} onClick={() => set("logoVariant", v)} style={{ ...mkBtn(st.logoVariant === v), flex: 1, fontSize: 11, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "6px 4px" }}>
-                <span style={{ width: 20, height: 20, borderRadius: "50%", background: bg, border: "1.5px solid #ccc", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: fg, fontWeight: 700 }}>A</span>
+            {[["blue",UI,"#fff","Modré"],["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"]].map(([v,bg,fg,lab]) => (
+              <button key={v} onClick={() => set("logoVariant", v)} style={{ ...mkBtn(st.logoVariant===v), flex:1, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 4px" }}>
+                <span style={{ width:20, height:20, borderRadius:"50%", background:bg, border:"1.5px solid #ccc", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:fg, fontWeight:700 }}>A</span>
                 <span>{lab}</span>
               </button>
             ))}
           </div>
-          {st.bgMode !== "template2" && st.bgMode !== "template3" && (
-            <>
-              <div style={S.lbl}>Zarovnání</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v, ic]) => (
-                  <button key={v} onClick={() => set("textAlign", v)} style={{ ...mkBtn(st.textAlign === v), flex: 1, fontSize: 14 }}>{ic}</button>
-                ))}
-              </div>
-            </>
-          )}
-          {st.bgMode !== "template3" && (
-            <>
-              <div style={S.lbl}>Pozice textu</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v, l]) => (
-                  <button key={v} onClick={() => set("textPos", v)} style={{ ...mkBtn(st.textPos === v), flex: 1, fontSize: 11 }}>{l}</button>
-                ))}
-              </div>
-            </>
-          )}
+          {st.bgMode !== "template2" && st.bgMode !== "template3" && (<>
+            <div style={S.lbl}>Zarovnání</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v,ic]) => (
+                <button key={v} onClick={() => set("textAlign", v)} style={{ ...mkBtn(st.textAlign===v), flex:1, fontSize:14 }}>{ic}</button>
+              ))}
+            </div>
+          </>)}
+          {st.bgMode !== "template3" && (<>
+            <div style={S.lbl}>Pozice textu</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v,l]) => (
+                <button key={v} onClick={() => set("textPos", v)} style={{ ...mkBtn(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
+              ))}
+            </div>
+          </>)}
           <div style={S.lbl}>Font</div>
           <select value={st.fontFamily} onChange={e => set("fontFamily", e.target.value)} style={S.inp}>
             {FONTS.map(f => <option key={f}>{f}</option>)}
           </select>
           <div style={S.lbl}>Velikost písma</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={() => set("fontScale", Math.max(0.5, Math.round((st.fontScale-0.1)*10)/10))} style={{ ...mkBtn(false), width: 30, padding: "4px 0", fontSize: 16, textAlign: "center" }}>−</button>
-            <input type="range" min="0.5" max="2.0" step="0.05" value={st.fontScale} onChange={e => set("fontScale", parseFloat(e.target.value))} style={{ flex: 1 }} />
-            <button onClick={() => set("fontScale", Math.min(2.0, Math.round((st.fontScale+0.1)*10)/10))} style={{ ...mkBtn(false), width: 30, padding: "4px 0", fontSize: 16, textAlign: "center" }}>+</button>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={() => set("fontScale", Math.max(0.5, Math.round((st.fontScale-0.1)*10)/10))} style={{ ...mkBtn(false), width:30, padding:"4px 0", fontSize:16, textAlign:"center" }}>−</button>
+            <input type="range" min="0.5" max="2.0" step="0.05" value={st.fontScale} onChange={e => set("fontScale", parseFloat(e.target.value))} style={{ flex:1 }} />
+            <button onClick={() => set("fontScale", Math.min(2.0, Math.round((st.fontScale+0.1)*10)/10))} style={{ ...mkBtn(false), width:30, padding:"4px 0", fontSize:16, textAlign:"center" }}>+</button>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2, marginBottom: 4 }}>
-            <span style={{ fontSize: 11, color: "#888" }}>{Math.round(st.fontScale * 100)} %</span>
-            <button onClick={() => set("fontScale", 1.0)} style={{ fontSize: 10, color: UI, background: "none", border: "none", cursor: "pointer", padding: 0 }}>reset</button>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:2, marginBottom:4 }}>
+            <span style={{ fontSize:11, color:"#888" }}>{Math.round(st.fontScale*100)} %</span>
+            <button onClick={() => set("fontScale",1.0)} style={{ fontSize:10, color:UI, background:"none", border:"none", cursor:"pointer", padding:0 }}>reset</button>
           </div>
-          {st.bgMode !== "template3" && (
-            <>
-              <div style={S.lbl}>Barva textu</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width: 34, height: 28, padding: 2, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer" }} />
-                <span style={{ fontSize: 12, color: "#888" }}>{st.textColor}</span>
-              </div>
-            </>
-          )}
+          {st.bgMode !== "template3" && (<>
+            <div style={S.lbl}>Barva textu</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+              <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width:34, height:28, padding:2, border:"1px solid #ddd", borderRadius:4, cursor:"pointer" }} />
+              <span style={{ fontSize:12, color:"#888" }}>{st.textColor}</span>
+            </div>
+          </>)}
         </div>
       )}
     </>
@@ -313,23 +298,23 @@ function RichControls({ st, dispatch, onImageUpload }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
   return (
     <div style={S.card}>
-      <label style={S.uploadLabel}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true)} style={{ display: "none" }} /></label>
+      <label style={S.uploadLabel}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true)} style={{ display:"none" }} /></label>
       <div style={S.lbl}>Pozice fotky</div>
-      <div style={{ display: "flex", gap: 6 }}>
-        {[["top","Nahoře"],["bottom","Dole"]].map(([v, l]) => (
-          <button key={v} onClick={() => set("richPhotoPos", v)} style={{ ...mkBtn(st.richPhotoPos === v), flex: 1, fontSize: 11 }}>{l}</button>
+      <div style={{ display:"flex", gap:6 }}>
+        {[["top","Nahoře"],["bottom","Dole"]].map(([v,l]) => (
+          <button key={v} onClick={() => set("richPhotoPos", v)} style={{ ...mkBtn(st.richPhotoPos===v), flex:1, fontSize:11 }}>{l}</button>
         ))}
       </div>
-      <div style={{ ...S.lbl, marginTop: 10 }}>Varianta panelu</div>
-      <div style={{ display: "flex", gap: 6 }}>
-        {[["light","Světlá"],["dark","Tmavá"],["color","Barva"]].map(([v, l]) => (
-          <button key={v} onClick={() => set("richVariant", v)} style={{ ...mkBtn(st.richVariant === v), flex: 1, fontSize: 11 }}>{l}</button>
+      <div style={{ ...S.lbl, marginTop:10 }}>Varianta panelu</div>
+      <div style={{ display:"flex", gap:6 }}>
+        {[["light","Světlá"],["dark","Tmavá"],["color","Barva"]].map(([v,l]) => (
+          <button key={v} onClick={() => set("richVariant", v)} style={{ ...mkBtn(st.richVariant===v), flex:1, fontSize:11 }}>{l}</button>
         ))}
       </div>
       {st.richVariant === "color" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-          <input type="color" value={st.richPanelColor} onChange={e => set("richPanelColor", e.target.value)} style={{ width: 34, height: 28, padding: 2, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer" }} />
-          <span style={{ fontSize: 12, color: "#888" }}>{st.richPanelColor}</span>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:8 }}>
+          <input type="color" value={st.richPanelColor} onChange={e => set("richPanelColor", e.target.value)} style={{ width:34, height:28, padding:2, border:"1px solid #ddd", borderRadius:4, cursor:"pointer" }} />
+          <span style={{ fontSize:12, color:"#888" }}>{st.richPanelColor}</span>
         </div>
       )}
     </div>
@@ -340,21 +325,19 @@ function CustomControls({ st, dispatch, onImageUpload }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
   return (
     <div style={S.card}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        <button onClick={() => set("customSub", "image")} style={{ ...mkBtn(st.customSub === "image"), flex: 1, fontSize: 11 }}>Foto</button>
-        <button onClick={() => { set("customSub", "color"); set("logoVariant", "white"); }} style={{ ...mkBtn(st.customSub === "color"), flex: 1, fontSize: 11 }}>Barva</button>
+      <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+        <button onClick={() => set("customSub","image")} style={{ ...mkBtn(st.customSub==="image"), flex:1, fontSize:11 }}>Foto</button>
+        <button onClick={() => { set("customSub","color"); set("logoVariant","white"); }} style={{ ...mkBtn(st.customSub==="color"), flex:1, fontSize:11 }}>Barva</button>
       </div>
-      {st.customSub === "image" ? (
-        <>
-          <label style={S.uploadLabel}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display: "none" }} /></label>
-          <div style={S.lbl}>Tmavý překryv</div>
-          <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width: "100%" }} />
-          <span style={{ fontSize: 11, color: "#888" }}>{Math.round(st.overlayOpacity * 100)} %</span>
-        </>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input type="color" value={st.bgColor} onChange={e => set("bgColor", e.target.value)} style={{ width: 34, height: 28, padding: 2, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer" }} />
-          <span style={{ fontSize: 12, color: "#888" }}>{st.bgColor}</span>
+      {st.customSub === "image" ? (<>
+        <label style={S.uploadLabel}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
+        <div style={S.lbl}>Tmavý překryv</div>
+        <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
+        <span style={{ fontSize:11, color:"#888" }}>{Math.round(st.overlayOpacity*100)} %</span>
+      </>) : (
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <input type="color" value={st.bgColor} onChange={e => set("bgColor", e.target.value)} style={{ width:34, height:28, padding:2, border:"1px solid #ddd", borderRadius:4, cursor:"pointer" }} />
+          <span style={{ fontSize:12, color:"#888" }}>{st.bgColor}</span>
         </div>
       )}
     </div>
@@ -366,60 +349,41 @@ function Controls({ st, dispatch, onImageUpload, autoResize }) {
   return (
     <>
       <div style={S.lbl}>Formát</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
-          <button key={f.id} onClick={() => set("fmt", f)} style={{ ...mkBtn(st.fmt.id === f.id), display: "flex", flexDirection: "column", alignItems: "center", gap: 1, padding: "7px 4px" }}>
-            <span style={{ fontSize: 11 }}>{f.label}</span>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>{f.sub}</span>
+          <button key={f.id} onClick={() => set("fmt", f)} style={{ ...mkBtn(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
+            <span style={{ fontSize:11 }}>{f.label}</span>
+            <span style={{ fontSize:10, opacity:0.7 }}>{f.sub}</span>
           </button>
         ))}
       </div>
-
-      {st.bgMode === "template3" && (
-        <>
-          <label style={S.lbl}>Nadtitulek</label>
-          <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }}
-            onFocus={e => e.target.select()} placeholder="Volitelný nadtitulek…"
-            style={{ ...S.inp, height: 36, resize: "none", overflow: "hidden" }} />
-        </>
-      )}
-
+      {st.bgMode === "template3" && (<>
+        <label style={S.lbl}>Nadtitulek</label>
+        <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} placeholder="Volitelný nadtitulek…" style={{ ...S.inp, height:36, resize:"none", overflow:"hidden" }} />
+      </>)}
       <label style={S.lbl}>Nadpis</label>
-      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }}
-        onFocus={e => e.target.select()}
-        style={{ ...S.inp, height: 64, resize: "none", overflow: "hidden" }} />
-
+      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} style={{ ...S.inp, height:64, resize:"none", overflow:"hidden" }} />
       <label style={S.lbl}>Perex</label>
-      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }}
-        onFocus={e => e.target.select()} placeholder="Volitelný perex…"
-        style={{ ...S.inp, height: 52, resize: "none", overflow: "hidden" }} />
-
-      <div style={{ ...S.lbl, marginTop: 14 }}>Pozadí / šablona</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 10 }}>
-        <button onClick={() => set("bgMode", "template2")} style={tplBtn(st.bgMode, "template2")}>
-          <span style={{ width: 48, height: 28, borderRadius: 3, background: "#000", border: "2px solid #1B69BF", display: "block" }} />
-          <span style={{ fontSize: 10 }}>Černá</span>
+      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={e => e.target.select()} placeholder="Volitelný perex…" style={{ ...S.inp, height:52, resize:"none", overflow:"hidden" }} />
+      <div style={{ ...S.lbl, marginTop:14 }}>Pozadí / šablona</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
+        <button onClick={() => set("bgMode","template2")} style={tplBtn(st.bgMode,"template2")}>
+          <span style={{ width:48, height:28, borderRadius:3, background:"#000", border:"2px solid #1B69BF", display:"block" }} /><span style={{ fontSize:10 }}>Černá</span>
         </button>
-        <button onClick={() => set("bgMode", "template1")} style={tplBtn(st.bgMode, "template1")}>
-          <span style={{ width: 48, height: 28, borderRadius: 3, background: "linear-gradient(to bottom,#6B9FCC,#000810)", display: "block" }} />
-          <span style={{ fontSize: 10 }}>Modrá</span>
+        <button onClick={() => set("bgMode","template1")} style={tplBtn(st.bgMode,"template1")}>
+          <span style={{ width:48, height:28, borderRadius:3, background:"linear-gradient(to bottom,#6B9FCC,#000810)", display:"block" }} /><span style={{ fontSize:10 }}>Modrá</span>
         </button>
-        <button onClick={() => set("bgMode", "template3")} style={tplBtn(st.bgMode, "template3")}>
-          <span style={{ width: 48, height: 28, borderRadius: 3, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-            <span style={{ flex: "0 0 55%", background: "#aaa" }} />
-            <span style={{ flex: "0 0 45%", background: "#1B69BF" }} />
-          </span>
-          <span style={{ fontSize: 10 }}>Rich</span>
+        <button onClick={() => set("bgMode","template3")} style={tplBtn(st.bgMode,"template3")}>
+          <span style={{ width:48, height:28, borderRadius:3, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+            <span style={{ flex:"0 0 55%", background:"#aaa" }} /><span style={{ flex:"0 0 45%", background:"#1B69BF" }} />
+          </span><span style={{ fontSize:10 }}>Rich</span>
         </button>
-        <button onClick={() => { set("bgMode", "custom"); set("customSub", "image"); }} style={tplBtn(st.bgMode, "custom")}>
-          <span style={{ width: 48, height: 28, borderRadius: 3, background: "conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", display: "block" }} />
-          <span style={{ fontSize: 10 }}>Vlastní</span>
+        <button onClick={() => { set("bgMode","custom"); set("customSub","image"); }} style={tplBtn(st.bgMode,"custom")}>
+          <span style={{ width:48, height:28, borderRadius:3, background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", display:"block" }} /><span style={{ fontSize:10 }}>Vlastní</span>
         </button>
       </div>
-
       {st.bgMode === "template3" && <RichControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} />}
       {st.bgMode === "custom"     && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} />}
-
       <AdvancedSettings st={st} dispatch={dispatch} />
     </>
   );
@@ -427,45 +391,48 @@ function Controls({ st, dispatch, onImageUpload, autoResize }) {
 
 function Preview({ canvasRef, fmt }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ textAlign: "center", fontSize: 11, color: "#aaa", marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
+      <div style={{ textAlign:"center", fontSize:11, color:"#aaa", marginBottom:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em" }}>
         Náhled — {fmt.label} ({fmt.w} × {fmt.h})
       </div>
-      <canvas ref={canvasRef} style={{ borderRadius: 10, boxShadow: "0 6px 28px rgba(0,0,0,0.18)", display: "block", maxWidth: "100%" }} />
+      <canvas ref={canvasRef} style={{ borderRadius:10, boxShadow:"0 6px 28px rgba(0,0,0,0.18)", display:"block", maxWidth:"100%" }} />
     </div>
   );
 }
 
 function Actions({ fmt, onReset, onExport, mobile = false }) {
-  const pad = `${mobile ? 12 : 10}px 0`;
-  const fz  = mobile ? 14 : 13;
+  const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, ...(!mobile && { marginTop: 16, paddingTop: 14, borderTop: "1px solid #eee" }) }}>
-      <button onClick={onReset}  style={{ ...mkBtn(false), width: "100%", fontSize: fz, padding: pad }}>Začít znovu</button>
-      <button onClick={onExport} style={{ ...mkBtn(true),  width: "100%", fontSize: fz, padding: pad }}>⬇ Stáhnout</button>
-      <div style={{ fontSize: 10, color: "#bbb", textAlign: "center" }}>{fmt.w} × {fmt.h} px</div>
+    <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:"1px solid #eee" }) }}>
+      <button onClick={onReset}  style={{ ...mkBtn(false), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
+      <button onClick={onExport} style={{ ...mkBtn(true),  width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
+      <div style={{ fontSize:10, color:"#bbb", textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
     </div>
   );
 }
 
 function AppHeader({ logoCanvasRef }) {
   return (
-    <div style={{ fontSize: 15, fontWeight: 700, color: UI, display: "flex", alignItems: "center", gap: 8 }}>
-      <canvas ref={logoCanvasRef} style={{ width: 28, height: 28, flexShrink: 0 }} />
+    <div style={{ fontSize:15, fontWeight:700, color:UI, display:"flex", alignItems:"center", gap:8 }}>
+      <canvas ref={logoCanvasRef} style={{ width:28, height:28, flexShrink:0 }} />
       Post Generator
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APP
+// ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [st, dispatch]        = useReducer(reducer, DEFAULTS);
+  const [st, dispatch]                  = useReducer(reducer, DEFAULTS);
   const [confirmReset, setConfirmReset] = useState(false);
   const [isMobile, setIsMobile]         = useState(false);
 
   const canvasRef     = useRef(null);
   const imgRef        = useRef(null);
   const logoCanvasRef = useRef(null);
-  const stRef         = useRef(st);
-  useEffect(() => { stRef.current = st; }, [st]);
+  // imgRef-only stRef — used solely in async image upload handler
+  const imgForOpts    = useRef(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -473,7 +440,7 @@ export default function App() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Fix #4: guard against duplicate font link in React StrictMode
+  // Fix #4: guard against duplicate font link in StrictMode
   useEffect(() => {
     if (document.querySelector('link[href*="Inter"]')) return;
     const link = document.createElement("link");
@@ -482,74 +449,67 @@ export default function App() {
     document.head.appendChild(link);
   }, []);
 
-  // buildOpts reads from stRef — stable reference, no recreate on every state change
-  const buildOpts = useCallback((overrides = {}) => {
-    const s = stRef.current;
-    const effectiveBgMode = s.bgMode === "custom"
-      ? (s.customSub === "image" ? "image" : "color") : s.bgMode;
-    return {
-      bgMode: effectiveBgMode, bgColor: s.bgColor, bgImage: imgRef.current,
-      overlayOpacity: s.overlayOpacity, headline: s.headline, subtext: s.subtext,
-      supertitle: s.supertitle, textColor: s.textColor, fontFamily: s.fontFamily,
-      fontScale: s.fontScale, textAlign: s.textAlign, textPos: s.textPos,
-      logoVariant: s.logoVariant, richVariant: s.richVariant,
-      richPhotoPos: s.richPhotoPos, richPanelColor: s.richPanelColor,
-      ...overrides,
-    };
-  }, []);
+  // ── buildOpts reads directly from st — recreates on every state change ──
+  // This is intentional: correctness > micro-optimisation.
+  // isMobile intentionally excluded — layout change triggers its own redraw below.
+  const effectiveBgMode = st.bgMode === "custom"
+    ? (st.customSub === "image" ? "image" : "color") : st.bgMode;
+
+  const buildOpts = useCallback((overrides = {}) => ({
+    bgMode: effectiveBgMode, bgColor: st.bgColor, bgImage: imgRef.current,
+    overlayOpacity: st.overlayOpacity, headline: st.headline, subtext: st.subtext,
+    supertitle: st.supertitle, textColor: st.textColor, fontFamily: st.fontFamily,
+    fontScale: st.fontScale, textAlign: st.textAlign, textPos: st.textPos,
+    logoVariant: st.logoVariant, richVariant: st.richVariant,
+    richPhotoPos: st.richPhotoPos, richPanelColor: st.richPanelColor,
+    ...overrides,
+  }), [st, effectiveBgMode]);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current; if (!canvas) return;
-    renderToCanvas(canvas, stRef.current.fmt, buildOpts());
-  }, [buildOpts]);
+    renderToCanvas(canvas, st.fmt, buildOpts());
+  }, [st.fmt, buildOpts]);
 
   const drawSidebarLogo = useCallback(() => {
     const c = logoCanvasRef.current; if (!c) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR); // 🟡 fix: cap DPR
-    const size = 28;
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR), size = 28;
     c.width = size * dpr; c.height = size * dpr;
     c.style.width = size + "px"; c.style.height = size + "px";
     const ctx = c.getContext("2d"); ctx.scale(dpr, dpr);
     drawLogoOnCanvas(ctx, size/2, size/2, size/2 - 1, "blue");
   }, []);
 
+  // Redraw whenever state changes or layout switches
   useEffect(() => { redraw(); }, [redraw]);
+  useEffect(() => { redraw(); }, [isMobile]);
+
   useEffect(() => {
     document.fonts.load("bold 40px Inter").then(() => {
-      const MX = getMeasureCtx();
-      MX.font = "bold 40px Inter"; MX.measureText("A");
+      const MX = getMeasureCtx(); MX.font = "bold 40px Inter"; MX.measureText("A");
       redraw(); drawSidebarLogo();
     });
   }, []);
 
   const autoResize = e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; };
 
-  // 🔴 fix: MIME validation + 🟡 fix: file size limit + 🟡 fix: no DOM injection
   const handleImageUpload = useCallback((e, isRich = false) => {
-    const file = e.target.files?.[0]; if (!file) return;
-
-    // Fix #2: capture input ref before async operations — avoids null e.target
-    const input = e.target;
+    const file  = e.target.files?.[0]; if (!file) return;
+    const input = e.target; // Fix #2: capture before async
 
     if (!ALLOWED_MIME.includes(file.type)) {
-      alert(`Nepodporovaný formát souboru.\nPovolené typy: JPEG, PNG, WebP, GIF.`);
-      input.value = "";
-      return;
+      alert("Nepodporovaný formát souboru.\nPovolené typy: JPEG, PNG, WebP, GIF.");
+      input.value = ""; return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      alert(`Soubor je příliš velký (max 20 MB).`);
-      input.value = "";
-      return;
+      alert("Soubor je příliš velký (max 20 MB).");
+      input.value = ""; return;
     }
-
     const reader = new FileReader();
     reader.onload = ev => {
       const dataUrl = ev.target.result;
       const allowedPrefixes = ALLOWED_MIME.map(m => `data:${m};base64,`);
       if (!allowedPrefixes.some(p => dataUrl.startsWith(p))) {
-        console.warn("Blocked suspicious data URL");
-        input.value = "";
-        return;
+        console.warn("Blocked suspicious data URL"); input.value = ""; return;
       }
       const img = new Image();
       img.onload = () => {
@@ -562,27 +522,20 @@ export default function App() {
           dispatch({ type: "SET", key: "bgMode",    value: "custom" });
           dispatch({ type: "SET", key: "customSub", value: "image"  });
         }
-        renderToCanvas(canvas, stRef.current.fmt, buildOpts(overrides));
+        // Render immediately with explicit opts — don't wait for state settle
+        renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides });
       };
-      // Fix #5: user-visible error feedback on image load failure
-      img.onerror = () => {
-        alert("Obrázek se nepodařilo načíst. Zkuste jiný soubor.");
-        input.value = "";
-      };
+      img.onerror = () => { alert("Obrázek se nepodařilo načíst. Zkuste jiný soubor."); input.value = ""; };
       img.src = dataUrl;
     };
-    reader.onerror = () => {
-      alert("Chyba při čtení souboru. Zkuste to znovu.");
-      input.value = "";
-    };
+    reader.onerror = () => { alert("Chyba při čtení souboru. Zkuste to znovu."); input.value = ""; };
     reader.readAsDataURL(file);
-  }, [buildOpts]);
+  }, [st.fmt, buildOpts]);
 
-  // Fix #6: synchronous stRef update prevents export race window after reset
+  // Fix #6: synchronous reset — no race window between dispatch and export
   const doReset = () => {
-    dispatch({ type: "RESET" });
-    stRef.current = DEFAULTS;
     imgRef.current = null;
+    dispatch({ type: "RESET" });
     setConfirmReset(false);
   };
 
@@ -590,9 +543,8 @@ export default function App() {
     const { w, h } = st.fmt;
     const off = document.createElement("canvas"); off.width = w; off.height = h;
     drawPost(off.getContext("2d"), w, h, buildOpts());
-    // 🟡 fix: dispatchEvent without appendChild — avoids DOM injection vector
     const a = document.createElement("a");
-    a.href     = off.toDataURL("image/png", 0.93);
+    a.href = off.toDataURL("image/png", 0.93);
     a.download = `aktualne-${st.fmt.id}.png`;
     a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
   };
@@ -601,44 +553,44 @@ export default function App() {
   const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs };
 
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif", background: "#f4f5f7", minHeight: "100vh" }}>
+    <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:"#f4f5f7", minHeight:"100vh" }}>
 
       {confirmReset && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: "28px 32px", width: 300, textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#222", marginBottom: 8 }}>Začít znovu?</div>
-            <div style={{ fontSize: 13, color: "#666", marginBottom: 24 }}>Skutečně chcete smazat dosavadní práci?</div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setConfirmReset(false)} style={{ ...mkBtn(false), flex: 1, padding: "9px 0", fontSize: 13 }}>Ne</button>
-              <button onClick={doReset} style={{ ...mkBtn(true), flex: 1, padding: "9px 0", fontSize: 13 }}>Ano</button>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
+          <div style={{ background:"#fff", borderRadius:12, padding:"28px 32px", width:300, textAlign:"center", boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }}>
+            <div style={{ fontSize:16, fontWeight:700, color:"#222", marginBottom:8 }}>Začít znovu?</div>
+            <div style={{ fontSize:13, color:"#666", marginBottom:24 }}>Skutečně chcete smazat dosavadní práci?</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setConfirmReset(false)} style={{ ...mkBtn(false), flex:1, padding:"9px 0", fontSize:13 }}>Ne</button>
+              <button onClick={doReset} style={{ ...mkBtn(true), flex:1, padding:"9px 0", fontSize:13 }}>Ano</button>
             </div>
           </div>
         </div>
       )}
 
       {isMobile ? (
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ background: "#fff", borderBottom: "1px solid #e6e6e6", padding: "14px 16px", position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ display:"flex", flexDirection:"column" }}>
+          <div style={{ background:"#fff", borderBottom:"1px solid #e6e6e6", padding:"14px 16px", position:"sticky", top:0, zIndex:10 }}>
             <AppHeader logoCanvasRef={logoCanvasRef} />
           </div>
-          <div style={{ background: "#fff", padding: "16px 16px 8px", borderBottom: "1px solid #e6e6e6" }}>
+          <div style={{ background:"#fff", padding:"16px 16px 8px", borderBottom:"1px solid #e6e6e6" }}>
             <Controls {...controlsProps} />
           </div>
-          <div style={{ background: "#f4f5f7", padding: "24px 16px 8px" }}>
+          <div style={{ background:"#f4f5f7", padding:"24px 16px 8px" }}>
             <Preview canvasRef={canvasRef} fmt={st.fmt} />
           </div>
-          <div style={{ position: "sticky", bottom: 0, background: "#fff", borderTop: "1px solid #eee", padding: "12px 16px" }}>
+          <div style={{ position:"sticky", bottom:0, background:"#fff", borderTop:"1px solid #eee", padding:"12px 16px" }}>
             <Actions {...actionsProps} mobile />
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", minHeight: "100vh" }}>
-          <div style={{ width: 268, background: "#fff", borderRight: "1px solid #e6e6e6", padding: "20px 16px", overflowY: "auto", flexShrink: 0 }}>
-            <div style={{ marginBottom: 16 }}><AppHeader logoCanvasRef={logoCanvasRef} /></div>
+        <div style={{ display:"flex", minHeight:"100vh" }}>
+          <div style={{ width:268, background:"#fff", borderRight:"1px solid #e6e6e6", padding:"20px 16px", overflowY:"auto", flexShrink:0 }}>
+            <div style={{ marginBottom:16 }}><AppHeader logoCanvasRef={logoCanvasRef} /></div>
             <Controls {...controlsProps} />
             <Actions {...actionsProps} />
           </div>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:32 }}>
             <Preview canvasRef={canvasRef} fmt={st.fmt} />
           </div>
         </div>
