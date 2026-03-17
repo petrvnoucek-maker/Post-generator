@@ -95,7 +95,7 @@ function drawCropped(ctx, img, x, y, w, h) {
 }
 function drawPhotoPlaceholder(ctx, areaX, areaY, areaW, areaH) {
   ctx.fillStyle = "#c8c8c8"; ctx.fillRect(areaX, areaY, areaW, areaH);
-  const cx = areaX + areaW / 2, cy = areaY + areaH * 0.5;
+  const cx = areaX + areaW / 2, cy = areaY + areaH * 0.35;
   const ic = Math.min(areaW, areaH) * 0.18;
   ctx.save(); ctx.globalAlpha = 0.7;
   ctx.strokeStyle = "#222"; ctx.fillStyle = "#222";
