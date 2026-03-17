@@ -21,20 +21,30 @@ function drawLogo(ctx, w, h, logoVariant = "white") {
   const circleFill = logoVariant === "white" ? "#ffffff"
                    : logoVariant === "black"  ? "#111111"
                    :                            "#1B69BF";
-  const aFill      = logoVariant === "white"  ? "#2B5F9E" : "#ffffff";
+  const aFill = logoVariant === "white" ? "#2B5F9E" : "#ffffff";
 
-  // Shadow for better visibility
-  ctx.shadowColor = "rgba(0,0,0,0.25)"; ctx.shadowBlur = r * 0.4;
+  // Circle with subtle shadow
+  ctx.shadowColor = "rgba(0,0,0,0.22)"; ctx.shadowBlur = r * 0.4;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = circleFill; ctx.fill();
   ctx.shadowBlur = 0;
 
-  const fs = r * 1.05;
-  ctx.font = `bold ${fs}px Inter, Arial`; ctx.fillStyle = aFill;
-  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-  ctx.fillText("A", cx, cy + fs * 0.32);
-  const bw = fs * 0.62, bh = Math.max(2, r * 0.11);
-  ctx.fillRect(cx - bw / 2, cy + fs * 0.46, bw, bh);
+  // Typography metrics — center the block [A + gap + bar] inside circle
+  const fs   = r * 1.08;
+  const capH = fs * 0.68;   // approximate cap-height of bold "A"
+  const gap  = fs * 0.10;
+  const bh   = Math.max(2, r * 0.10);
+  const bw   = fs * 0.60;
+  const totalH = capH + gap + bh;
+  const blockTop = cy - totalH / 2;  // vertically centered in circle
+
+  ctx.fillStyle   = aFill;
+  ctx.textAlign   = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `bold ${fs}px Inter, Arial`;
+  ctx.fillText("A", cx, blockTop + capH);
+
+  ctx.fillRect(cx - bw / 2, blockTop + capH + gap, bw, bh);
   ctx.restore();
 }
 
