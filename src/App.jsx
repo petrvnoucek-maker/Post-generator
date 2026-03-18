@@ -3,17 +3,17 @@ import { useState, useRef, useEffect, useCallback, useReducer } from "react";
 const ALLOWED_MIME   = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_DPR        = 3;
+const PREVIEW_MAX_DESKTOP = 570;
+const PREVIEW_MAX_MOBILE  = 380;
 
 const FORMATS = [
   { id: "social",  label: "IG / FB / X", sub: "4:5",  w: 1200, h: 1500 },
   { id: "square",  label: "Čtvercový",   sub: "1:1",  w: 1200, h: 1200 },
   { id: "story",   label: "Stories",     sub: "9:16", w: 1080, h: 1920 },
 ];
-const FONTS = ["Inter", "Arial", "Georgia", "Times New Roman", "Verdana", "Impact", "Trebuchet MS"];
-const UI    = "#1B69BF";
-const BAR   = "#1B69BF";
-const PREVIEW_MAX_DESKTOP = 570;
-const PREVIEW_MAX_MOBILE  = 380;
+const FONTS = ["Inter", "Barlow", "Arial", "Georgia", "Times New Roman", "Verdana", "Impact", "Trebuchet MS"];
+const UI  = "#1B69BF";
+const BAR = "#1B69BF";
 const TEMPLATE_NAMES = {
   template1: "modra", template2: "cerna", template3: "rich",
   image: "foto", color: "vlastni",
@@ -25,8 +25,7 @@ const DEFAULTS = {
   bgMode: "template2", logoVariant: "blue",
   customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.45,
   richVariant: "light", richPhotoPos: "top", richPanelColor: "#1B69BF",
-  fmt: FORMATS[0], advancedOpen: false,
-  cropRect: null, // { sx, sy, srcW, srcH } in image pixels
+  fmt: FORMATS[0], advancedOpen: false, cropRect: null,
 };
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
@@ -108,8 +107,7 @@ function drawLogo(ctx, w, h, variant) {
 }
 function drawCropped(ctx, img, x, y, w, h, cropRect) {
   if (cropRect) {
-    const { sx, sy, srcW, srcH } = cropRect;
-    ctx.drawImage(img, sx, sy, srcW, srcH, x, y, w, h);
+    ctx.drawImage(img, cropRect.sx, cropRect.sy, cropRect.srcW, cropRect.srcH, x, y, w, h);
   } else {
     const ir = img.width / img.height, cr = w / h;
     let sx, sy, sw, sh;
@@ -153,7 +151,7 @@ function drawTemplateRich(ctx, w, h, opts) {
   const panelBg = richVariant === "light" ? "#ffffff" : richVariant === "dark" ? "#111111" : richPanelColor;
   ctx.fillStyle = panelBg; ctx.fillRect(0, panelY, w, panelH);
   if (bgImage) drawCropped(ctx, bgImage, 0, photoY, w, photoH, cropRect);
-  else drawPhotoPlaceholder(ctx, 0, photoY, w, photoH);
+  else drawPhotoPlaceholder(ctx, 0, photoY, w, photoH, 0.5);
   const textCol   = richVariant === "light" ? "#111111" : "#ffffff";
   const accentCol = richVariant === "light" ? UI : richVariant === "color" ? "#ffffff" : "#6AABF0";
   const stSize = Math.round(w * 0.034 * fontScale);
@@ -244,121 +242,97 @@ const mkBtn = (active, color = UI, t = LIGHT) => ({
   color: active ? "#fff" : t.btnInactiveColor,
 });
 const tplBtn = (bgMode, id, t) => ({ ...mkBtn(bgMode === id, UI, t), padding:"9px 6px", display:"flex", flexDirection:"column", alignItems:"center", gap:3 });
-const mkInp = (t, mobile) => ({ width:"100%", padding:"6px 8px", borderRadius:6, border:`1px solid ${t.border}`, boxSizing:"border-box", fontSize: mobile ? 16 : 13, fontFamily:"Inter, system-ui, sans-serif", background:t.bgInput, color:t.textPrimary });
-const mkLbl = t => ({ display:"block", fontSize:11, fontWeight:600, color:t.textSecondary, marginBottom:4, marginTop:12, textTransform:"uppercase", letterSpacing:"0.05em" });
+const mkInp  = (t, mobile) => ({ width:"100%", padding:"6px 8px", borderRadius:6, border:`1px solid ${t.border}`, boxSizing:"border-box", fontSize: mobile ? 16 : 13, fontFamily:"Inter, system-ui, sans-serif", background:t.bgInput, color:t.textPrimary });
+const mkLbl  = t => ({ display:"block", fontSize:11, fontWeight:600, color:t.textSecondary, marginBottom:4, marginTop:12, textTransform:"uppercase", letterSpacing:"0.05em" });
 const mkCard   = t => ({ background:t.bgCard, borderRadius:8, padding:10, marginBottom:4 });
 const mkUpload = t => ({ display:"block", background:t.uploadBg, border:`1px dashed ${t.borderDashed}`, borderRadius:6, padding:"8px 12px", textAlign:"center", cursor:"pointer", fontSize:12, color:t.textSecondary });
 
 // ── Crop Modal ────────────────────────────────────────────────────────────────
 function CropModal({ img, cropW, cropH, initialCrop, onConfirm, onCancel }) {
-  const MAX_PV   = Math.min(460, window.innerWidth - 32, window.innerHeight - 220);
-  const pvScale  = Math.min(MAX_PV / cropW, MAX_PV / cropH);
-  const pw       = Math.round(cropW * pvScale);
-  const ph       = Math.round(cropH * pvScale);
+  const MAX_PV     = Math.min(460, window.innerWidth - 32, window.innerHeight - 220);
+  const pvScale    = Math.min(MAX_PV / cropW, MAX_PV / cropH);
+  const pw         = Math.round(cropW * pvScale);
+  const ph         = Math.round(cropH * pvScale);
   const coverScale = Math.max(pw / img.width, ph / img.height);
 
-  // All crop state in one reducer — atomic updates, no stale closures
   const initCrop = () => {
     if (initialCrop) {
       const z  = pw / (initialCrop.srcW * coverScale);
       const ds = coverScale * z;
       const cx = initialCrop.sx + initialCrop.srcW / 2;
       const cy = initialCrop.sy + initialCrop.srcH / 2;
-      // Sign matches handleConfirm: cx = img.width/2 + cpx/ds → cpx = (cx - img.width/2) * ds
       return { zoom: z, panX: (cx - img.width / 2) * ds, panY: (cy - img.height / 2) * ds };
     }
     return { zoom: 1, panX: 0, panY: 0 };
   };
 
   const cropReducer = (s, a) => {
-    switch (a.type) {
-      case "PAN":
-        return { ...s, panX: s.panX + a.dx, panY: s.panY + a.dy };
-      case "ZOOM": {
-        const nz    = Math.max(1, Math.min(5, s.zoom * a.delta));
-        const ratio = nz / s.zoom;
-        return { zoom: nz, panX: s.panX * ratio, panY: s.panY * ratio };
-      }
-      default: return s;
+    if (a.type === "PAN")  return { ...s, panX: s.panX + a.dx, panY: s.panY + a.dy };
+    if (a.type === "ZOOM") {
+      const nz = Math.max(1, Math.min(5, s.zoom * a.delta));
+      const ratio = nz / s.zoom;
+      return { zoom: nz, panX: s.panX * ratio, panY: s.panY * ratio };
     }
+    return s;
   };
 
   const [crop, dispatchCrop] = useReducer(cropReducer, null, initCrop);
+  const dragging       = useRef(false);
+  const lastPos        = useRef({ x: 0, y: 0 });
+  const lastPinchDist  = useRef(null);
+  const containerRef   = useRef(null);
+  const previewCanvasRef = useRef(null);
 
-  const dragging      = useRef(false);
-  const lastPos       = useRef({ x: 0, y: 0 });
-  const lastPinchDist = useRef(null);
-  const containerRef  = useRef(null);
+  const ds    = coverScale * crop.zoom;
+  const maxPX = Math.max(0, (img.width  * ds - pw) / 2);
+  const maxPY = Math.max(0, (img.height * ds - ph) / 2);
+  const cpx   = Math.max(-maxPX, Math.min(maxPX, crop.panX));
+  const cpy   = Math.max(-maxPY, Math.min(maxPY, crop.panY));
+  const scaledW = img.width  * ds;
+  const scaledH = img.height * ds;
 
-  // Non-passive wheel — must use native addEventListener
   useEffect(() => {
     const el = containerRef.current; if (!el) return;
-    const onWheel = e => {
-      e.preventDefault();
-      e.stopPropagation();
-      dispatchCrop({ type: "ZOOM", delta: e.deltaY > 0 ? 0.92 : 1.08 });
-    };
+    const onWheel = e => { e.preventDefault(); e.stopPropagation(); dispatchCrop({ type:"ZOOM", delta: e.deltaY > 0 ? 0.92 : 1.08 }); };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
+  useEffect(() => {
+    const c = previewCanvasRef.current; if (!c) return;
+    c.width = pw; c.height = ph;
+    const ctx = c.getContext("2d");
+    ctx.clearRect(0, 0, pw, ph);
+    ctx.drawImage(img, 0, 0, img.width, img.height,
+      pw / 2 - cpx - scaledW / 2,
+      ph / 2 - cpy - scaledH / 2,
+      scaledW, scaledH);
+  }, [cpx, cpy, scaledW, scaledH, pw, ph, img]);
+
   const onMouseDown = e => { dragging.current = true; lastPos.current = { x: e.clientX, y: e.clientY }; e.preventDefault(); };
   const onMouseMove = e => {
     if (!dragging.current) return;
-    dispatchCrop({ type: "PAN", dx: -(e.clientX - lastPos.current.x), dy: -(e.clientY - lastPos.current.y) });
+    dispatchCrop({ type:"PAN", dx: -(e.clientX - lastPos.current.x), dy: -(e.clientY - lastPos.current.y) });
     lastPos.current = { x: e.clientX, y: e.clientY };
   };
   const onMouseUp = () => { dragging.current = false; };
 
   const onTouchStart = e => {
-    if (e.touches.length === 1) {
-      lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    } else if (e.touches.length === 2) {
-      lastPinchDist.current = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-    }
+    if (e.touches.length === 1) lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    else if (e.touches.length === 2) lastPinchDist.current = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
     e.preventDefault();
   };
   const onTouchMove = e => {
     if (e.touches.length === 1) {
-      dispatchCrop({ type: "PAN", dx: e.touches[0].clientX - lastPos.current.x, dy: e.touches[0].clientY - lastPos.current.y });
+      dispatchCrop({ type:"PAN", dx: -(e.touches[0].clientX - lastPos.current.x), dy: -(e.touches[0].clientY - lastPos.current.y) });
       lastPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     } else if (e.touches.length === 2 && lastPinchDist.current) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      dispatchCrop({ type: "ZOOM", delta: dist / lastPinchDist.current });
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      dispatchCrop({ type:"ZOOM", delta: dist / lastPinchDist.current });
       lastPinchDist.current = dist;
     }
     e.preventDefault();
   };
-
-  // Clamp pan so image never leaves the frame
-  const ds   = coverScale * crop.zoom;
-  const maxPX = Math.max(0, (img.width  * ds - pw) / 2);
-  const maxPY = Math.max(0, (img.height * ds - ph) / 2);
-  const cpx  = Math.max(-maxPX, Math.min(maxPX, crop.panX));
-  const cpy  = Math.max(-maxPY, Math.min(maxPY, crop.panY));
-
-  // Use CSS transform — no width/height mutation, no stretching
-  const imgStyle = {
-    position: "absolute",
-    left: "50%", top: "50%",
-    width:  img.width,
-    height: img.height,
-    transform: `translate(calc(-50% + ${cpx}px), calc(-50% + ${cpy}px)) scale(${ds / (1 / img.width * img.width)})`,
-    transformOrigin: "center center",
-    pointerEvents: "none",
-    userSelect: "none",
-    imageRendering: "auto",
-  };
-
-  // Simpler: just position with translate + explicit scale via width
-  const scaledW = img.width  * ds;
-  const scaledH = img.height * ds;
 
   const handleConfirm = () => {
     const cx   = img.width  / 2 + cpx / ds;
@@ -372,19 +346,6 @@ function CropModal({ img, cropW, cropH, initialCrop, onConfirm, onCancel }) {
       srcH: Math.min(srcH, img.height),
     });
   };
-
-  // Draw preview onto canvas — immune to CSS img resets
-  const previewCanvasRef = useRef(null);
-  useEffect(() => {
-    const c = previewCanvasRef.current; if (!c) return;
-    c.width  = pw;
-    c.height = ph;
-    const ctx = c.getContext("2d");
-    ctx.drawImage(img, 0, 0, img.width, img.height,
-      pw / 2 - cpx - scaledW / 2,
-      ph / 2 - cpy - scaledH / 2,
-      scaledW, scaledH);
-  }, [cpx, cpy, scaledW, scaledH, pw, ph]);
 
   return (
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:2000, gap:14, padding:16 }}>
@@ -412,7 +373,7 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
   const open    = st.advancedOpen;
   const setOpen = val => dispatch({ type:"SET", key:"advancedOpen", value:val });
   const set     = (key, val) => dispatch({ type:"SET", key, value:val });
-  const B       = (active, color) => mkBtn(active, color || UI, t);
+  const B       = active => mkBtn(active, UI, t);
   return (
     <>
       <button onClick={() => setOpen(!open)} style={{ width:"100%", marginTop:10, padding:"8px 10px", borderRadius:7, border:`1px solid ${open ? UI : t.border}`, background: open ? t.advActiveBg : t.bgAdvanced, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontWeight:600, color: open ? UI : t.textSecondary }}>
@@ -430,22 +391,26 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
               </button>
             ))}
           </div>
-          {st.bgMode !== "template2" && st.bgMode !== "template3" && (<>
-            <div style={mkLbl(t)}>Zarovnání</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v,ic]) => (
-                <button key={v} onClick={() => set("textAlign", v)} style={{ ...B(st.textAlign===v), flex:1, fontSize:14 }}>{ic}</button>
-              ))}
-            </div>
-          </>)}
-          {st.bgMode !== "template3" && (<>
-            <div style={mkLbl(t)}>Pozice textu</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v,l]) => (
-                <button key={v} onClick={() => set("textPos", v)} style={{ ...B(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
-              ))}
-            </div>
-          </>)}
+          {st.bgMode !== "template2" && st.bgMode !== "template3" && (
+            <>
+              <div style={mkLbl(t)}>Zarovnání</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v,ic]) => (
+                  <button key={v} onClick={() => set("textAlign", v)} style={{ ...B(st.textAlign===v), flex:1, fontSize:14 }}>{ic}</button>
+                ))}
+              </div>
+            </>
+          )}
+          {st.bgMode !== "template3" && (
+            <>
+              <div style={mkLbl(t)}>Pozice textu</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v,l]) => (
+                  <button key={v} onClick={() => set("textPos", v)} style={{ ...B(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
+                ))}
+              </div>
+            </>
+          )}
           <div style={mkLbl(t)}>Font</div>
           <select value={st.fontFamily} onChange={e => set("fontFamily", e.target.value)} style={{ ...mkInp(t, mobile), marginBottom:4 }}>
             {FONTS.map(f => <option key={f}>{f}</option>)}
@@ -460,13 +425,15 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
             <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.fontScale*100)} %</span>
             <button onClick={() => set("fontScale", 1.0)} style={{ fontSize:10, color:UI, background:"none", border:"none", cursor:"pointer", padding:0 }}>reset</button>
           </div>
-          {st.bgMode !== "template3" && (<>
-            <div style={mkLbl(t)}>Barva textu</div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-              <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
-              <span style={{ fontSize:12, color:t.textMuted }}>{st.textColor}</span>
-            </div>
-          </>)}
+          {st.bgMode !== "template3" && (
+            <>
+              <div style={mkLbl(t)}>Barva textu</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
+                <span style={{ fontSize:12, color:t.textMuted }}>{st.textColor}</span>
+              </div>
+            </>
+          )}
         </div>
       )}
     </>
@@ -510,12 +477,14 @@ function CustomControls({ st, dispatch, onImageUpload, t, mobile }) {
         <button onClick={() => set("customSub","image")} style={{ ...B(st.customSub==="image"), flex:1, fontSize:11 }}>Foto</button>
         <button onClick={() => { set("customSub","color"); set("logoVariant","white"); }} style={{ ...B(st.customSub==="color"), flex:1, fontSize:11 }}>Barva</button>
       </div>
-      {st.customSub === "image" ? (<>
-        <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
-        <div style={mkLbl(t)}>Tmavý překryv</div>
-        <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
-        <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.overlayOpacity*100)} %</span>
-      </>) : (
+      {st.customSub === "image" ? (
+        <>
+          <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
+          <div style={mkLbl(t)}>Tmavý překryv</div>
+          <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
+          <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.overlayOpacity*100)} %</span>
+        </>
+      ) : (
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <input type="color" value={st.bgColor} onChange={e => set("bgColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
           <span style={{ fontSize:12, color:t.textMuted }}>{st.bgColor}</span>
@@ -533,16 +502,18 @@ function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobil
       <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
-          <button key={f.id} onClick={() => set("fmt", f)} style={{ ...B(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
+          <button key={f.id} onClick={() => { set("fmt", f); set("cropRect", null); }} style={{ ...B(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
             <span style={{ fontSize:11 }}>{f.label}</span>
             <span style={{ fontSize:10, opacity:0.7 }}>{f.sub}</span>
           </button>
         ))}
       </div>
-      {st.bgMode === "template3" && (<>
-        <label style={mkLbl(t)}>Nadtitulek</label>
-        <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný nadtitulek…" style={{ ...mkInp(t, mobile), height:36, resize:"none", overflow:"hidden" }} />
-      </>)}
+      {st.bgMode === "template3" && (
+        <>
+          <label style={mkLbl(t)}>Nadtitulek</label>
+          <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný nadtitulek…" style={{ ...mkInp(t, mobile), height:36, resize:"none", overflow:"hidden" }} />
+        </>
+      )}
       <label style={mkLbl(t)}>Titulek</label>
       <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...mkInp(t, mobile), height:44, resize:"none", overflow:"hidden" }} />
       <label style={mkLbl(t)}>Perex</label>
@@ -591,10 +562,10 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
         onMouseEnter={() => isPhotoMode && setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        <canvas ref={canvasRef} style={{ borderRadius:10, boxShadow:"0 6px 28px rgba(0,0,0,0.25)", display:"block", maxWidth:"100%", cursor: isPhotoMode ? "pointer" : "default" }} />
+        <canvas ref={canvasRef} style={{ borderRadius:10, boxShadow:"0 6px 28px rgba(0,0,0,0.25)", display:"block", maxWidth:"100%" }} />
         {isPhotoMode && (
           <>
-            <div onClick={() => fileInputRef.current?.click()} style={{ position:"absolute", inset:0, borderRadius:10, background:"transparent" }} />
+            <div onClick={() => fileInputRef.current?.click()} style={{ position:"absolute", inset:0, borderRadius:10, background:"transparent", cursor:"pointer" }} />
             {hovered && (
               <div style={{ position:"absolute", bottom:12, left:"50%", transform:"translateX(-50%)", background:"rgba(0,0,0,0.72)", color:"#fff", fontSize:12, fontWeight:600, padding:"6px 14px", borderRadius:20, whiteSpace:"nowrap", pointerEvents:"none" }}>
                 📁 Klikni pro nahrání fotky
@@ -605,10 +576,7 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
         )}
       </div>
       {isPhotoMode && hasImage && (
-        <button
-          onClick={onOpenCrop}
-          style={{ ...mkBtn(false, UI, t), marginTop:10, padding:"7px 18px", fontSize:12 }}
-        >
+        <button onClick={onOpenCrop} style={{ ...mkBtn(false, UI, t), marginTop:10, padding:"7px 18px", fontSize:12 }}>
           ✂️ Upravit výřez
         </button>
       )}
@@ -650,8 +618,12 @@ export default function App() {
   const logoCanvasRef = useRef(null);
 
   useEffect(() => {
-    document.documentElement.style.cssText = `margin:0;padding:0;background:${t.bgMain}`;
-    document.body.style.cssText = `margin:0;padding:0;background:${t.bgMain}`;
+    document.documentElement.style.margin = "0";
+    document.documentElement.style.padding = "0";
+    document.documentElement.style.background = t.bgMain;
+    document.body.style.margin = "0";
+    document.body.style.padding = "0";
+    document.body.style.background = t.bgMain;
   }, [t.bgMain]);
 
   useEffect(() => {
@@ -664,7 +636,7 @@ export default function App() {
     if (document.querySelector('link[href*="googleapis.com/css2?family=Inter"]')) return;
     const link = document.createElement("link");
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Barlow:wght@400;700&display=swap";
     document.head.appendChild(link);
   }, []);
 
@@ -682,11 +654,12 @@ export default function App() {
     ...overrides,
   }), [st, effectiveBgMode]);
 
+  const previewMax = isMobile ? PREVIEW_MAX_MOBILE : PREVIEW_MAX_DESKTOP;
+
   const redraw = useCallback(() => {
     const canvas = canvasRef.current; if (!canvas) return;
-    const previewMax = isMobile ? PREVIEW_MAX_MOBILE : PREVIEW_MAX_DESKTOP;
     renderToCanvas(canvas, st.fmt, buildOpts(), previewMax);
-  }, [st.fmt, buildOpts, isMobile]);
+  }, [st.fmt, buildOpts, previewMax]);
 
   const drawSidebarLogo = useCallback(() => {
     const c = logoCanvasRef.current; if (!c) return;
@@ -699,10 +672,13 @@ export default function App() {
 
   useEffect(() => { redraw(); }, [redraw]);
   useEffect(() => { redraw(); drawSidebarLogo(); }, [isMobile]);
+
   useEffect(() => {
     document.fonts.load("bold 40px Inter").then(() => {
-      const MX = getMeasureCtx(); MX.font = "bold 40px Inter"; MX.measureText("A");
-      redraw(); drawSidebarLogo();
+      document.fonts.load("bold 40px Barlow").then(() => {
+        const MX = getMeasureCtx(); MX.font = "bold 40px Inter"; MX.measureText("A");
+        redraw(); drawSidebarLogo();
+      });
     });
   }, []);
 
@@ -721,20 +697,19 @@ export default function App() {
       const img = new Image();
       img.onload = () => {
         imgRef.current = img;
-        dispatch({ type:"SET", key:"cropRect", value:null }); // reset crop on new image
+        dispatch({ type:"SET", key:"cropRect", value:null });
         const canvas = canvasRef.current; if (!canvas) return;
         const overrides = isRich ? { bgMode:"template3", bgImage:img } : { bgMode:"image", bgImage:img };
         if (!isRich) { dispatch({ type:"SET", key:"bgMode", value:"custom" }); dispatch({ type:"SET", key:"customSub", value:"image" }); }
-        renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides, cropRect: null }, isMobile ? PREVIEW_MAX_MOBILE : PREVIEW_MAX_DESKTOP);
+        renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides, cropRect:null }, previewMax);
       };
       img.onerror = () => { alert("Obrázek se nepodařilo načíst. Zkuste jiný soubor."); input.value = ""; };
       img.src = dataUrl;
     };
     reader.onerror = () => { alert("Chyba při čtení souboru. Zkuste to znovu."); input.value = ""; };
     reader.readAsDataURL(file);
-  }, [st.fmt, buildOpts]);
+  }, [st.fmt, buildOpts, previewMax]);
 
-  // Crop dimensions for modal
   const getCropDimensions = () => {
     const { w, h } = st.fmt;
     if (st.bgMode === "template3") return { cropW: w, cropH: Math.round(h * 0.55) };
@@ -744,6 +719,8 @@ export default function App() {
   const handleCropConfirm = cropRect => {
     dispatch({ type:"SET", key:"cropRect", value:cropRect });
     setCropOpen(false);
+    const canvas = canvasRef.current;
+    if (canvas) renderToCanvas(canvas, st.fmt, { ...buildOpts(), cropRect }, previewMax);
   };
 
   const doReset = () => { imgRef.current = null; dispatch({ type:"RESET" }); setConfirmReset(false); };
@@ -760,7 +737,7 @@ export default function App() {
     a.dispatchEvent(new MouseEvent("click", { bubbles:true, cancelable:true, view:window }));
   };
 
-  const hasImage = !!imgRef.current;
+  const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
   const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t };
@@ -782,13 +759,7 @@ export default function App() {
       )}
 
       {cropOpen && imgRef.current && (
-        <CropModal
-          img={imgRef.current}
-          {...getCropDimensions()}
-          initialCrop={st.cropRect}
-          onConfirm={handleCropConfirm}
-          onCancel={() => setCropOpen(false)}
-        />
+        <CropModal img={imgRef.current} {...getCropDimensions()} initialCrop={st.cropRect} onConfirm={handleCropConfirm} onCancel={() => setCropOpen(false)} />
       )}
 
       {isMobile ? (
