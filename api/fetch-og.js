@@ -1,46 +1,32 @@
 export default async function handler(req, res) {
-  // CORS headers — allow requests from any origin
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  const { url } = req.query;
-  if (!url) return res.status(400).json({ error: "Missing url" });
+  if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "cs,en;q=0.9",
-      },
-      redirect: "follow",
+    const response = await fetch("https://www.aktualne.cz/mrss", {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)" },
     });
-    if (!response.ok) return res.status(502).json({ error: `HTTP ${response.status}` });
-    const html = await response.text();
+    const xml = await response.text();
 
-    const get = prop => {
-      const patterns = [
-        new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']+)["']`, "i"),
-        new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${prop}["']`, "i"),
-        new RegExp(`<meta[^>]+property=${prop}[^>]+content=["']([^"']+)["']`, "i"),
-      ];
-      for (const p of patterns) {
-        const m = html.match(p);
-        if (m) return m[1];
-      }
-      return null;
-    };
+    // Parse <item> elements
+    const items = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+    let match;
+    while ((match = itemRegex.exec(xml)) !== null && items.length < 20) {
+      const item = match[1];
+      const get = tag => { const m = item.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>|<${tag}[^>]*>([^<]*)<\\/${tag}>`, "i")); return m ? (m[1] || m[2] || "").trim() : null; };
+      const getAttr = (tag, attr) => { const m = item.match(new RegExp(`<${tag}[^>]+${attr}=["']([^"']+)["']`, "i")); return m ? m[1] : null; };
+      items.push({
+        title:       get("title"),
+        description: get("description"),
+        link:        get("link"),
+        image:       getAttr("media:content", "url") || getAttr("media:thumbnail", "url") || getAttr("enclosure", "url"),
+        pubDate:     get("pubDate"),
+      });
+    }
 
-    res.status(200).json({
-      title: get("og:title"),
-      description: get("og:description"),
-      image: get("og:image"),
-    });
+    res.status(200).json({ items });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
