@@ -9,10 +9,14 @@ const FORMATS = [
   { id: "square",  label: "Čtvercový",   sub: "1:1",  w: 1200, h: 1200 },
   { id: "story",   label: "Stories",     sub: "9:16", w: 1080, h: 1920 },
 ];
-const FONTS    = ["Inter", "Arial", "Georgia", "Times New Roman", "Verdana", "Impact", "Trebuchet MS"];
-const UI       = "#1B69BF";
-const BAR      = "#1B69BF";
+const FONTS = ["Inter", "Arial", "Georgia", "Times New Roman", "Verdana", "Impact", "Trebuchet MS"];
+const UI    = "#1B69BF";
+const BAR   = "#1B69BF";
 const PREVIEW_MAX = 380;
+const TEMPLATE_NAMES = {
+  template1: "modra", template2: "cerna", template3: "rich",
+  image: "foto", color: "vlastni",
+};
 
 const DEFAULTS = {
   headline: "Sem patří text", subtext: "", supertitle: "",
@@ -24,58 +28,33 @@ const DEFAULTS = {
   fmt: FORMATS[0], advancedOpen: false,
 };
 
-const TEMPLATE_NAMES = {
-  template1: "modra", template2: "cerna", template3: "rich",
-  image: "foto", color: "vlastni",
-};
-
-// ── Light / Dark theme ────────────────────────────────────────────────────────
+// ── Theme ─────────────────────────────────────────────────────────────────────
 const LIGHT = {
-  bgMain:        "#f4f5f7",
-  bgSidebar:     "#ffffff",
-  bgCard:        "#f8f8f8",
-  bgAdvanced:    "#fafafa",
-  bgInput:       "#ffffff",
-  border:        "#e6e6e6",
-  borderLight:   "#eee",
-  borderDashed:  "#ccc",
-  textPrimary:   "#333",
-  textSecondary: "#555",
-  textMuted:     "#888",
-  textFaint:     "#bbb",
-  btnInactiveBg: "#f0f0f0",
-  btnInactiveColor: "#444",
-  advActiveBg:   "#EFF6FF",
-  uploadBg:      "#fff",
+  bgMain: "#f4f5f7", bgSidebar: "#ffffff", bgCard: "#f8f8f8",
+  bgAdvanced: "#fafafa", bgInput: "#ffffff",
+  border: "#e6e6e6", borderLight: "#eee", borderDashed: "#ccc",
+  textPrimary: "#333", textSecondary: "#555", textMuted: "#888", textFaint: "#bbb",
+  btnInactiveBg: "#f0f0f0", btnInactiveColor: "#444",
+  advActiveBg: "#EFF6FF", uploadBg: "#fff",
 };
 const DARK = {
-  bgMain:        "#1a1a1a",
-  bgSidebar:     "#242424",
-  bgCard:        "#2e2e2e",
-  bgAdvanced:    "#2a2a2a",
-  bgInput:       "#333",
-  border:        "#383838",
-  borderLight:   "#333",
-  borderDashed:  "#555",
-  textPrimary:   "#e8e8e8",
-  textSecondary: "#aaa",
-  textMuted:     "#777",
-  textFaint:     "#555",
-  btnInactiveBg: "#363636",
-  btnInactiveColor: "#ccc",
-  advActiveBg:   "#1a2a3a",
-  uploadBg:      "#2e2e2e",
+  bgMain: "#1a1a1a", bgSidebar: "#242424", bgCard: "#2e2e2e",
+  bgAdvanced: "#2a2a2a", bgInput: "#333",
+  border: "#383838", borderLight: "#333", borderDashed: "#555",
+  textPrimary: "#e8e8e8", textSecondary: "#aaa", textMuted: "#777", textFaint: "#555",
+  btnInactiveBg: "#363636", btnInactiveColor: "#ccc",
+  advActiveBg: "#1a2a3a", uploadBg: "#2e2e2e",
 };
 
 function useDarkMode() {
-  const [dark, setDark] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
+  const [dark, setDark] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = e => setDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
+    const h = e => setDark(e.matches);
+    mq.addEventListener("change", h);
+    return () => mq.removeEventListener("change", h);
   }, []);
   return dark;
 }
@@ -263,24 +242,30 @@ const mkBtn = (active, color = UI, t = LIGHT) => ({
   background: active ? color : t.btnInactiveBg,
   color: active ? "#fff" : t.btnInactiveColor,
 });
-const tplBtn = (bgMode, id, t) => ({ ...mkBtn(bgMode === id, UI, t), padding: "9px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 });
-const inp = (t, mobile) => ({
+const tplBtn = (bgMode, id, t) => ({
+  ...mkBtn(bgMode === id, UI, t), padding: "9px 6px",
+  display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+});
+const mkInp = (t, mobile) => ({
   width: "100%", padding: "6px 8px", borderRadius: 6,
   border: `1px solid ${t.border}`, boxSizing: "border-box",
-  fontSize: mobile ? 16 : 13, // 16px prevents iOS zoom
+  fontSize: mobile ? 16 : 13,
   fontFamily: "Inter, system-ui, sans-serif",
   background: t.bgInput, color: t.textPrimary,
 });
-const lbl = t => ({ display: "block", fontSize: 11, fontWeight: 600, color: t.textSecondary, marginBottom: 4, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.05em" });
-const card = t => ({ background: t.bgCard, borderRadius: 8, padding: 10, marginBottom: 4 });
-const uploadLabel = t => ({ display: "block", background: t.uploadBg, border: `1px dashed ${t.borderDashed}`, borderRadius: 6, padding: "8px 12px", textAlign: "center", cursor: "pointer", fontSize: 12, color: t.textSecondary });
+const mkLbl = t => ({
+  display: "block", fontSize: 11, fontWeight: 600, color: t.textSecondary,
+  marginBottom: 4, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.05em",
+});
+const mkCard    = t => ({ background: t.bgCard, borderRadius: 8, padding: 10, marginBottom: 4 });
+const mkUpload  = t => ({ display: "block", background: t.uploadBg, border: `1px dashed ${t.borderDashed}`, borderRadius: 6, padding: "8px 12px", textAlign: "center", cursor: "pointer", fontSize: 12, color: t.textSecondary });
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function AdvancedSettings({ st, dispatch, t, mobile }) {
   const open    = st.advancedOpen;
   const setOpen = val => dispatch({ type: "SET", key: "advancedOpen", value: val });
   const set     = (key, val) => dispatch({ type: "SET", key, value: val });
-  const B       = (active, color) => mkBtn(active, color, t);
+  const B       = (active, color) => mkBtn(active, color || UI, t);
   return (
     <>
       <button onClick={() => setOpen(!open)} style={{ width:"100%", marginTop:10, padding:"8px 10px", borderRadius:7, border:`1px solid ${open ? UI : t.border}`, background: open ? t.advActiveBg : t.bgAdvanced, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontWeight:600, color: open ? UI : t.textSecondary }}>
@@ -289,7 +274,7 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
       </button>
       {open && (
         <div style={{ marginTop:4, padding:"10px 10px 4px", background:t.bgAdvanced, borderRadius:7, border:`1px solid ${t.borderLight}` }}>
-          <div style={lbl(t)}>Logo</div>
+          <div style={mkLbl(t)}>Logo</div>
           <div style={{ display:"flex", gap:6, marginBottom:6 }}>
             {[["blue",UI,"#fff","Modré"],["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"]].map(([v,bg,fg,lab]) => (
               <button key={v} onClick={() => set("logoVariant", v)} style={{ ...B(st.logoVariant===v), flex:1, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 4px" }}>
@@ -298,27 +283,31 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
               </button>
             ))}
           </div>
-          {st.bgMode !== "template2" && st.bgMode !== "template3" && (<>
-            <div style={lbl(t)}>Zarovnání</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v,ic]) => (
-                <button key={v} onClick={() => set("textAlign", v)} style={{ ...B(st.textAlign===v), flex:1, fontSize:14 }}>{ic}</button>
-              ))}
-            </div>
-          </>)}
-          {st.bgMode !== "template3" && (<>
-            <div style={lbl(t)}>Pozice textu</div>
-            <div style={{ display:"flex", gap:6 }}>
-              {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v,l]) => (
-                <button key={v} onClick={() => set("textPos", v)} style={{ ...B(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
-              ))}
-            </div>
-          </>)}
-          <div style={lbl(t)}>Font</div>
-          <select value={st.fontFamily} onChange={e => set("fontFamily", e.target.value)} style={{ ...inp(t, mobile), marginBottom:4 }}>
+          {st.bgMode !== "template2" && st.bgMode !== "template3" && (
+            <>
+              <div style={mkLbl(t)}>Zarovnání</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v,ic]) => (
+                  <button key={v} onClick={() => set("textAlign", v)} style={{ ...B(st.textAlign===v), flex:1, fontSize:14 }}>{ic}</button>
+                ))}
+              </div>
+            </>
+          )}
+          {st.bgMode !== "template3" && (
+            <>
+              <div style={mkLbl(t)}>Pozice textu</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v,l]) => (
+                  <button key={v} onClick={() => set("textPos", v)} style={{ ...B(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
+                ))}
+              </div>
+            </>
+          )}
+          <div style={mkLbl(t)}>Font</div>
+          <select value={st.fontFamily} onChange={e => set("fontFamily", e.target.value)} style={{ ...mkInp(t, mobile), marginBottom:4 }}>
             {FONTS.map(f => <option key={f}>{f}</option>)}
           </select>
-          <div style={lbl(t)}>Velikost písma</div>
+          <div style={mkLbl(t)}>Velikost písma</div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <button onClick={() => set("fontScale", Math.max(0.5, Math.round((st.fontScale-0.1)*10)/10))} style={{ ...B(false), width:30, padding:"4px 0", fontSize:16, textAlign:"center" }}>−</button>
             <input type="range" min="0.5" max="2.0" step="0.05" value={st.fontScale} onChange={e => set("fontScale", parseFloat(e.target.value))} style={{ flex:1 }} />
@@ -328,13 +317,15 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
             <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.fontScale*100)} %</span>
             <button onClick={() => set("fontScale", 1.0)} style={{ fontSize:10, color:UI, background:"none", border:"none", cursor:"pointer", padding:0 }}>reset</button>
           </div>
-          {st.bgMode !== "template3" && (<>
-            <div style={lbl(t)}>Barva textu</div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-              <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
-              <span style={{ fontSize:12, color:t.textMuted }}>{st.textColor}</span>
-            </div>
-          </>)}
+          {st.bgMode !== "template3" && (
+            <>
+              <div style={mkLbl(t)}>Barva textu</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
+                <span style={{ fontSize:12, color:t.textMuted }}>{st.textColor}</span>
+              </div>
+            </>
+          )}
         </div>
       )}
     </>
@@ -343,17 +334,17 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
 
 function RichControls({ st, dispatch, onImageUpload, t, mobile }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
-  const B   = (active) => mkBtn(active, UI, t);
+  const B   = active => mkBtn(active, UI, t);
   return (
-    <div style={card(t)}>
-      <label style={uploadLabel(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true)} style={{ display:"none" }} /></label>
-      <div style={lbl(t)}>Pozice fotky</div>
+    <div style={mkCard(t)}>
+      <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true)} style={{ display:"none" }} /></label>
+      <div style={mkLbl(t)}>Pozice fotky</div>
       <div style={{ display:"flex", gap:6 }}>
         {[["top","Nahoře"],["bottom","Dole"]].map(([v,l]) => (
           <button key={v} onClick={() => set("richPhotoPos", v)} style={{ ...B(st.richPhotoPos===v), flex:1, fontSize:11 }}>{l}</button>
         ))}
       </div>
-      <div style={{ ...lbl(t), marginTop:10 }}>Varianta panelu</div>
+      <div style={{ ...mkLbl(t), marginTop:10 }}>Varianta panelu</div>
       <div style={{ display:"flex", gap:6 }}>
         <button onClick={() => set("richVariant","light")} style={{ ...B(st.richVariant==="light"), flex:1, fontSize:11 }}>Světlá</button>
         <button onClick={() => { set("richVariant","dark"); set("logoVariant","black"); }} style={{ ...B(st.richVariant==="dark"), flex:1, fontSize:11 }}>Tmavá</button>
@@ -371,19 +362,21 @@ function RichControls({ st, dispatch, onImageUpload, t, mobile }) {
 
 function CustomControls({ st, dispatch, onImageUpload, t, mobile }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
-  const B   = (active) => mkBtn(active, UI, t);
+  const B   = active => mkBtn(active, UI, t);
   return (
-    <div style={card(t)}>
+    <div style={mkCard(t)}>
       <div style={{ display:"flex", gap:6, marginBottom:10 }}>
         <button onClick={() => set("customSub","image")} style={{ ...B(st.customSub==="image"), flex:1, fontSize:11 }}>Foto</button>
         <button onClick={() => { set("customSub","color"); set("logoVariant","white"); }} style={{ ...B(st.customSub==="color"), flex:1, fontSize:11 }}>Barva</button>
       </div>
-      {st.customSub === "image" ? (<>
-        <label style={uploadLabel(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
-        <div style={lbl(t)}>Tmavý překryv</div>
-        <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
-        <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.overlayOpacity*100)} %</span>
-      </>) : (
+      {st.customSub === "image" ? (
+        <>
+          <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
+          <div style={mkLbl(t)}>Tmavý překryv</div>
+          <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
+          <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.overlayOpacity*100)} %</span>
+        </>
+      ) : (
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <input type="color" value={st.bgColor} onChange={e => set("bgColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
           <span style={{ fontSize:12, color:t.textMuted }}>{st.bgColor}</span>
@@ -395,11 +388,10 @@ function CustomControls({ st, dispatch, onImageUpload, t, mobile }) {
 
 function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobile }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
-  const B   = (active) => mkBtn(active, UI, t);
-  const shared = { t, mobile };
+  const B   = active => mkBtn(active, UI, t);
   return (
     <>
-      <div style={lbl(t)}>Formát</div>
+      <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
           <button key={f.id} onClick={() => set("fmt", f)} style={{ ...B(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
@@ -408,34 +400,41 @@ function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobil
           </button>
         ))}
       </div>
-      {st.bgMode === "template3" && (<>
-        <label style={lbl(t)}>Nadtitulek</label>
-        <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný nadtitulek…" style={{ ...inp(t, mobile), height:36, resize:"none", overflow:"hidden" }} />
-      </>)}
-      <label style={lbl(t)}>Titulek</label>
-      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...inp(t, mobile), height:44, resize:"none", overflow:"hidden" }} />
-      <label style={lbl(t)}>Perex</label>
-      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...inp(t, mobile), height:52, resize:"none", overflow:"hidden" }} />
-      <div style={{ ...lbl(t), marginTop:14 }}>Pozadí / šablona</div>
+      {st.bgMode === "template3" && (
+        <>
+          <label style={mkLbl(t)}>Nadtitulek</label>
+          <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný nadtitulek…" style={{ ...mkInp(t, mobile), height:36, resize:"none", overflow:"hidden" }} />
+        </>
+      )}
+      <label style={mkLbl(t)}>Titulek</label>
+      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...mkInp(t, mobile), height:44, resize:"none", overflow:"hidden" }} />
+      <label style={mkLbl(t)}>Perex</label>
+      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...mkInp(t, mobile), height:52, resize:"none", overflow:"hidden" }} />
+      <div style={{ ...mkLbl(t), marginTop:14 }}>Pozadí / šablona</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
         <button onClick={() => set("bgMode","template2")} style={tplBtn(st.bgMode,"template2",t)}>
-          <span style={{ width:48, height:28, borderRadius:3, background:"#000", border:"2px solid #1B69BF", display:"block" }} /><span style={{ fontSize:10 }}>Černá</span>
+          <span style={{ width:48, height:28, borderRadius:3, background:"#000", border:"2px solid #1B69BF", display:"block" }} />
+          <span style={{ fontSize:10 }}>Černá</span>
         </button>
         <button onClick={() => set("bgMode","template1")} style={tplBtn(st.bgMode,"template1",t)}>
-          <span style={{ width:48, height:28, borderRadius:3, background:"linear-gradient(to bottom,#6B9FCC,#000810)", display:"block" }} /><span style={{ fontSize:10 }}>Modrá</span>
+          <span style={{ width:48, height:28, borderRadius:3, background:"linear-gradient(to bottom,#6B9FCC,#000810)", display:"block" }} />
+          <span style={{ fontSize:10 }}>Modrá</span>
         </button>
         <button onClick={() => set("bgMode","template3")} style={tplBtn(st.bgMode,"template3",t)}>
           <span style={{ width:48, height:28, borderRadius:3, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-            <span style={{ flex:"0 0 55%", background:"#aaa" }} /><span style={{ flex:"0 0 45%", background:"#1B69BF" }} />
-          </span><span style={{ fontSize:10 }}>Rich</span>
+            <span style={{ flex:"0 0 55%", background:"#aaa" }} />
+            <span style={{ flex:"0 0 45%", background:"#1B69BF" }} />
+          </span>
+          <span style={{ fontSize:10 }}>Rich</span>
         </button>
         <button onClick={() => { set("bgMode","custom"); set("customSub","image"); }} style={tplBtn(st.bgMode,"custom",t)}>
-          <span style={{ width:48, height:28, borderRadius:3, background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", display:"block" }} /><span style={{ fontSize:10 }}>Vlastní</span>
+          <span style={{ width:48, height:28, borderRadius:3, background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", display:"block" }} />
+          <span style={{ fontSize:10 }}>Vlastní</span>
         </button>
       </div>
-      {st.bgMode === "template3" && <RichControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} {...shared} />}
-      {st.bgMode === "custom"     && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} {...shared} />}
-      <AdvancedSettings st={st} dispatch={dispatch} {...shared} />
+      {st.bgMode === "template3" && <RichControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
+      {st.bgMode === "custom"     && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
+      <AdvancedSettings st={st} dispatch={dispatch} t={t} mobile={mobile} />
     </>
   );
 }
@@ -446,18 +445,17 @@ function Preview({ canvasRef, fmt, t }) {
       <div style={{ textAlign:"center", fontSize:11, color:t.textMuted, marginBottom:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em" }}>
         Náhled — {fmt.label} ({fmt.w} × {fmt.h})
       </div>
-      <canvas ref={canvasRef} style={{ borderRadius:10, boxShadow:"0 6px 28px rgba(0,0,0,0.18)", display:"block", maxWidth:"100%" }} />
+      <canvas ref={canvasRef} style={{ borderRadius:10, boxShadow:"0 6px 28px rgba(0,0,0,0.25)", display:"block", maxWidth:"100%" }} />
     </div>
   );
 }
 
 function Actions({ fmt, onReset, onExport, mobile, t }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
-  const B   = (active, color) => mkBtn(active, color, t);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
-      <button onClick={onReset}  style={{ ...B(false), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
-      <button onClick={onExport} style={{ ...B(true),  width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
+      <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
+      <button onClick={onExport} style={{ ...mkBtn(true,  UI, t), width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
       <div style={{ fontSize:10, color:t.textFaint, textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
     </div>
   );
@@ -477,12 +475,18 @@ export default function App() {
   const [st, dispatch]                  = useReducer(reducer, DEFAULTS);
   const [confirmReset, setConfirmReset] = useState(false);
   const [isMobile, setIsMobile]         = useState(false);
-  const dark                            = useDarkMode();
-  const t                               = dark ? DARK : LIGHT;
+  const dark = useDarkMode();
+  const t    = dark ? DARK : LIGHT;
 
   const canvasRef     = useRef(null);
   const imgRef        = useRef(null);
   const logoCanvasRef = useRef(null);
+
+  // Fix white edges in dark mode
+  useEffect(() => {
+    document.documentElement.style.cssText = `margin:0;padding:0;background:${t.bgMain}`;
+    document.body.style.cssText = `margin:0;padding:0;background:${t.bgMain}`;
+  }, [t.bgMain]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -490,7 +494,6 @@ export default function App() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Fix #4: guard against duplicate Inter link in StrictMode
   useEffect(() => {
     if (document.querySelector('link[href*="googleapis.com/css2?family=Inter"]')) return;
     const link = document.createElement("link");
@@ -527,7 +530,6 @@ export default function App() {
   }, []);
 
   useEffect(() => { redraw(); }, [redraw]);
-  // Fix logo disappearing on mobile layout switch
   useEffect(() => { redraw(); drawSidebarLogo(); }, [isMobile]);
 
   useEffect(() => {
@@ -548,8 +550,7 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = ev => {
       const dataUrl = ev.target.result;
-      const allowedPrefixes = ALLOWED_MIME.map(m => `data:${m};base64,`);
-      if (!allowedPrefixes.some(p => dataUrl.startsWith(p))) { console.warn("Blocked suspicious data URL"); input.value = ""; return; }
+      if (!ALLOWED_MIME.some(m => dataUrl.startsWith(`data:${m};base64,`))) { console.warn("Blocked suspicious data URL"); input.value = ""; return; }
       const img = new Image();
       img.onload = () => {
         imgRef.current = img;
@@ -567,7 +568,6 @@ export default function App() {
 
   const doReset = () => { imgRef.current = null; dispatch({ type:"RESET" }); setConfirmReset(false); };
 
-  // Unique filename: template-format-XXXXXX.png
   const exportAs = () => {
     const { w, h } = st.fmt;
     const off = document.createElement("canvas"); off.width = w; off.height = h;
@@ -592,8 +592,8 @@ export default function App() {
             <div style={{ fontSize:16, fontWeight:700, color:t.textPrimary, marginBottom:8 }}>Začít znovu?</div>
             <div style={{ fontSize:13, color:t.textSecondary, marginBottom:24 }}>Skutečně chcete smazat dosavadní práci?</div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setConfirmReset(false)} style={{ ...mkBtn(false,UI,t), flex:1, padding:"9px 0", fontSize:13 }}>Ne</button>
-              <button onClick={doReset}                      style={{ ...mkBtn(true, UI,t), flex:1, padding:"9px 0", fontSize:13 }}>Ano</button>
+              <button onClick={() => setConfirmReset(false)} style={{ ...mkBtn(false, UI, t), flex:1, padding:"9px 0", fontSize:13 }}>Ne</button>
+              <button onClick={doReset}                      style={{ ...mkBtn(true,  UI, t), flex:1, padding:"9px 0", fontSize:13 }}>Ano</button>
             </div>
           </div>
         </div>
