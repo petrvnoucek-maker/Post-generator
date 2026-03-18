@@ -13,6 +13,7 @@ const FONTS    = ["Inter", "Arial", "Georgia", "Times New Roman", "Verdana", "Im
 const UI       = "#1B69BF";
 const BAR      = "#1B69BF";
 const PREVIEW_MAX = 380;
+
 const DEFAULTS = {
   headline: "Sem patří text", subtext: "", supertitle: "",
   textColor: "#ffffff", textAlign: "left", textPos: "bottom",
@@ -23,12 +24,70 @@ const DEFAULTS = {
   fmt: FORMATS[0], advancedOpen: false,
 };
 
+const TEMPLATE_NAMES = {
+  template1: "modra", template2: "cerna", template3: "rich",
+  image: "foto", color: "vlastni",
+};
+
+// ── Light / Dark theme ────────────────────────────────────────────────────────
+const LIGHT = {
+  bgMain:        "#f4f5f7",
+  bgSidebar:     "#ffffff",
+  bgCard:        "#f8f8f8",
+  bgAdvanced:    "#fafafa",
+  bgInput:       "#ffffff",
+  border:        "#e6e6e6",
+  borderLight:   "#eee",
+  borderDashed:  "#ccc",
+  textPrimary:   "#333",
+  textSecondary: "#555",
+  textMuted:     "#888",
+  textFaint:     "#bbb",
+  btnInactiveBg: "#f0f0f0",
+  btnInactiveColor: "#444",
+  advActiveBg:   "#EFF6FF",
+  uploadBg:      "#fff",
+};
+const DARK = {
+  bgMain:        "#1a1a1a",
+  bgSidebar:     "#242424",
+  bgCard:        "#2e2e2e",
+  bgAdvanced:    "#2a2a2a",
+  bgInput:       "#333",
+  border:        "#383838",
+  borderLight:   "#333",
+  borderDashed:  "#555",
+  textPrimary:   "#e8e8e8",
+  textSecondary: "#aaa",
+  textMuted:     "#777",
+  textFaint:     "#555",
+  btnInactiveBg: "#363636",
+  btnInactiveColor: "#ccc",
+  advActiveBg:   "#1a2a3a",
+  uploadBg:      "#2e2e2e",
+};
+
+function useDarkMode() {
+  const [dark, setDark] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = e => setDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return dark;
+}
+
+// ── Reducer ───────────────────────────────────────────────────────────────────
 function reducer(state, action) {
   if (action.type === "RESET") return { ...DEFAULTS };
   if (action.type === "SET")   return { ...state, [action.key]: action.value };
   return state;
 }
 
+// ── Measurement canvas ────────────────────────────────────────────────────────
 const getMeasureCtx = (() => {
   let ctx = null;
   return () => { if (!ctx) ctx = document.createElement("canvas").getContext("2d"); return ctx; };
@@ -48,6 +107,7 @@ function wrapLines(fontStr, text, maxW) {
   return lines;
 }
 
+// ── Draw utilities ────────────────────────────────────────────────────────────
 function drawLogoOnCanvas(ctx, cx, cy, r, variant) {
   const circleFill = variant === "black" ? "#111111" : variant === "blue" ? UI : "#ffffff";
   const aFill      = variant === "white" ? "#2B5F9E" : "#ffffff";
@@ -100,6 +160,7 @@ function drawPhotoPlaceholder(ctx, areaX, areaY, areaW, areaH) {
   ctx.restore();
 }
 
+// ── Template draw functions ───────────────────────────────────────────────────
 function drawTemplateRich(ctx, w, h, opts) {
   const { bgImage, headline, subtext, supertitle, fontFamily, fontScale,
           logoVariant, richVariant, richPhotoPos, richPanelColor } = opts;
@@ -178,13 +239,11 @@ function drawTemplateStandard(ctx, w, h, opts) {
   ctx.globalAlpha = 0.82; drawBlock(subtext, ss, false, yBase+h1h+ss*0.7); ctx.globalAlpha = 1;
   drawLogo(ctx, w, h, logoVariant);
 }
-
 function drawPost(ctx, w, h, opts) {
   if (opts.bgMode === "template3") return drawTemplateRich(ctx, w, h, opts);
   if (opts.bgMode === "template2") return drawTemplateBlack(ctx, w, h, opts);
   return drawTemplateStandard(ctx, w, h, opts);
 }
-
 function renderToCanvas(canvas, fmt, opts) {
   const { w, h } = fmt;
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
@@ -197,71 +256,83 @@ function renderToCanvas(canvas, fmt, opts) {
   ctx.restore();
 }
 
-const S = {
-  inp:         { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #ddd", boxSizing: "border-box", fontSize: 13, fontFamily: "Inter, system-ui, sans-serif" },
-  lbl:         { display: "block", fontSize: 11, fontWeight: 600, color: "#555", marginBottom: 4, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.05em" },
-  uploadLabel: { display: "block", background: "#fff", border: "1px dashed #ccc", borderRadius: 6, padding: "8px 12px", textAlign: "center", cursor: "pointer", fontSize: 12, color: "#555" },
-  card:        { background: "#f8f8f8", borderRadius: 8, padding: 10, marginBottom: 4 },
-};
-const mkBtn  = (active, color = UI) => ({ padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, transition: "all .15s", background: active ? color : "#f0f0f0", color: active ? "#fff" : "#444" });
-const tplBtn = (bgMode, id) => ({ ...mkBtn(bgMode === id), padding: "9px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 });
+// ── Style helpers ─────────────────────────────────────────────────────────────
+const mkBtn = (active, color = UI, t = LIGHT) => ({
+  padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer",
+  fontSize: 12, fontWeight: 600, transition: "all .15s",
+  background: active ? color : t.btnInactiveBg,
+  color: active ? "#fff" : t.btnInactiveColor,
+});
+const tplBtn = (bgMode, id, t) => ({ ...mkBtn(bgMode === id, UI, t), padding: "9px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 });
+const inp = (t, mobile) => ({
+  width: "100%", padding: "6px 8px", borderRadius: 6,
+  border: `1px solid ${t.border}`, boxSizing: "border-box",
+  fontSize: mobile ? 16 : 13, // 16px prevents iOS zoom
+  fontFamily: "Inter, system-ui, sans-serif",
+  background: t.bgInput, color: t.textPrimary,
+});
+const lbl = t => ({ display: "block", fontSize: 11, fontWeight: 600, color: t.textSecondary, marginBottom: 4, marginTop: 12, textTransform: "uppercase", letterSpacing: "0.05em" });
+const card = t => ({ background: t.bgCard, borderRadius: 8, padding: 10, marginBottom: 4 });
+const uploadLabel = t => ({ display: "block", background: t.uploadBg, border: `1px dashed ${t.borderDashed}`, borderRadius: 6, padding: "8px 12px", textAlign: "center", cursor: "pointer", fontSize: 12, color: t.textSecondary });
 
-function AdvancedSettings({ st, dispatch }) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+function AdvancedSettings({ st, dispatch, t, mobile }) {
   const open    = st.advancedOpen;
   const setOpen = val => dispatch({ type: "SET", key: "advancedOpen", value: val });
   const set     = (key, val) => dispatch({ type: "SET", key, value: val });
+  const B       = (active, color) => mkBtn(active, color, t);
   return (
     <>
-      <button onClick={() => setOpen(!open)} style={{ width:"100%", marginTop:10, padding:"8px 10px", borderRadius:7, border:`1px solid ${open ? UI : "#ddd"}`, background: open ? "#EFF6FF" : "#fafafa", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontWeight:600, color: open ? UI : "#555" }}>
+      <button onClick={() => setOpen(!open)} style={{ width:"100%", marginTop:10, padding:"8px 10px", borderRadius:7, border:`1px solid ${open ? UI : t.border}`, background: open ? t.advActiveBg : t.bgAdvanced, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontWeight:600, color: open ? UI : t.textSecondary }}>
         <span>Pokročilé nastavení</span>
         <span style={{ fontSize:10, display:"inline-block", transform: open ? "rotate(180deg)" : "none", transition:"transform .2s" }}>▼</span>
       </button>
       {open && (
-        <div style={{ marginTop:4, padding:"10px 10px 4px", background:"#fafafa", borderRadius:7, border:"1px solid #eee" }}>
-          <div style={S.lbl}>Logo</div>
+        <div style={{ marginTop:4, padding:"10px 10px 4px", background:t.bgAdvanced, borderRadius:7, border:`1px solid ${t.borderLight}` }}>
+          <div style={lbl(t)}>Logo</div>
           <div style={{ display:"flex", gap:6, marginBottom:6 }}>
             {[["blue",UI,"#fff","Modré"],["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"]].map(([v,bg,fg,lab]) => (
-              <button key={v} onClick={() => set("logoVariant", v)} style={{ ...mkBtn(st.logoVariant===v), flex:1, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 4px" }}>
-                <span style={{ width:20, height:20, borderRadius:"50%", background:bg, border:"1.5px solid #ccc", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:fg, fontWeight:700 }}>A</span>
+              <button key={v} onClick={() => set("logoVariant", v)} style={{ ...B(st.logoVariant===v), flex:1, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 4px" }}>
+                <span style={{ width:20, height:20, borderRadius:"50%", background:bg, border:`1.5px solid ${t.borderDashed}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:fg, fontWeight:700 }}>A</span>
                 <span>{lab}</span>
               </button>
             ))}
           </div>
           {st.bgMode !== "template2" && st.bgMode !== "template3" && (<>
-            <div style={S.lbl}>Zarovnání</div>
+            <div style={lbl(t)}>Zarovnání</div>
             <div style={{ display:"flex", gap:6 }}>
               {[["left","⬅"],["center","⬛"],["right","➡"]].map(([v,ic]) => (
-                <button key={v} onClick={() => set("textAlign", v)} style={{ ...mkBtn(st.textAlign===v), flex:1, fontSize:14 }}>{ic}</button>
+                <button key={v} onClick={() => set("textAlign", v)} style={{ ...B(st.textAlign===v), flex:1, fontSize:14 }}>{ic}</button>
               ))}
             </div>
           </>)}
           {st.bgMode !== "template3" && (<>
-            <div style={S.lbl}>Pozice textu</div>
+            <div style={lbl(t)}>Pozice textu</div>
             <div style={{ display:"flex", gap:6 }}>
               {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v,l]) => (
-                <button key={v} onClick={() => set("textPos", v)} style={{ ...mkBtn(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
+                <button key={v} onClick={() => set("textPos", v)} style={{ ...B(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
               ))}
             </div>
           </>)}
-          <div style={S.lbl}>Font</div>
-          <select value={st.fontFamily} onChange={e => set("fontFamily", e.target.value)} style={S.inp}>
+          <div style={lbl(t)}>Font</div>
+          <select value={st.fontFamily} onChange={e => set("fontFamily", e.target.value)} style={{ ...inp(t, mobile), marginBottom:4 }}>
             {FONTS.map(f => <option key={f}>{f}</option>)}
           </select>
-          <div style={S.lbl}>Velikost písma</div>
+          <div style={lbl(t)}>Velikost písma</div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <button onClick={() => set("fontScale", Math.max(0.5, Math.round((st.fontScale-0.1)*10)/10))} style={{ ...mkBtn(false), width:30, padding:"4px 0", fontSize:16, textAlign:"center" }}>−</button>
+            <button onClick={() => set("fontScale", Math.max(0.5, Math.round((st.fontScale-0.1)*10)/10))} style={{ ...B(false), width:30, padding:"4px 0", fontSize:16, textAlign:"center" }}>−</button>
             <input type="range" min="0.5" max="2.0" step="0.05" value={st.fontScale} onChange={e => set("fontScale", parseFloat(e.target.value))} style={{ flex:1 }} />
-            <button onClick={() => set("fontScale", Math.min(2.0, Math.round((st.fontScale+0.1)*10)/10))} style={{ ...mkBtn(false), width:30, padding:"4px 0", fontSize:16, textAlign:"center" }}>+</button>
+            <button onClick={() => set("fontScale", Math.min(2.0, Math.round((st.fontScale+0.1)*10)/10))} style={{ ...B(false), width:30, padding:"4px 0", fontSize:16, textAlign:"center" }}>+</button>
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:2, marginBottom:4 }}>
-            <span style={{ fontSize:11, color:"#888" }}>{Math.round(st.fontScale*100)} %</span>
+            <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.fontScale*100)} %</span>
             <button onClick={() => set("fontScale", 1.0)} style={{ fontSize:10, color:UI, background:"none", border:"none", cursor:"pointer", padding:0 }}>reset</button>
           </div>
           {st.bgMode !== "template3" && (<>
-            <div style={S.lbl}>Barva textu</div>
+            <div style={lbl(t)}>Barva textu</div>
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-              <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width:34, height:28, padding:2, border:"1px solid #ddd", borderRadius:4, cursor:"pointer" }} />
-              <span style={{ fontSize:12, color:"#888" }}>{st.textColor}</span>
+              <input type="color" value={st.textColor} onChange={e => set("textColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
+              <span style={{ fontSize:12, color:t.textMuted }}>{st.textColor}</span>
             </div>
           </>)}
         </div>
@@ -270,105 +341,109 @@ function AdvancedSettings({ st, dispatch }) {
   );
 }
 
-function RichControls({ st, dispatch, onImageUpload }) {
+function RichControls({ st, dispatch, onImageUpload, t, mobile }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
+  const B   = (active) => mkBtn(active, UI, t);
   return (
-    <div style={S.card}>
-      <label style={S.uploadLabel}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true)} style={{ display:"none" }} /></label>
-      <div style={S.lbl}>Pozice fotky</div>
+    <div style={card(t)}>
+      <label style={uploadLabel(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true)} style={{ display:"none" }} /></label>
+      <div style={lbl(t)}>Pozice fotky</div>
       <div style={{ display:"flex", gap:6 }}>
         {[["top","Nahoře"],["bottom","Dole"]].map(([v,l]) => (
-          <button key={v} onClick={() => set("richPhotoPos", v)} style={{ ...mkBtn(st.richPhotoPos===v), flex:1, fontSize:11 }}>{l}</button>
+          <button key={v} onClick={() => set("richPhotoPos", v)} style={{ ...B(st.richPhotoPos===v), flex:1, fontSize:11 }}>{l}</button>
         ))}
       </div>
-      <div style={{ ...S.lbl, marginTop:10 }}>Varianta panelu</div>
+      <div style={{ ...lbl(t), marginTop:10 }}>Varianta panelu</div>
       <div style={{ display:"flex", gap:6 }}>
-        {[["light","Světlá"],["dark","Tmavá"],["color","Barva"]].map(([v,l]) => (
-          <button key={v} onClick={() => set("richVariant", v)} style={{ ...mkBtn(st.richVariant===v), flex:1, fontSize:11 }}>{l}</button>
-        ))}
+        <button onClick={() => set("richVariant","light")} style={{ ...B(st.richVariant==="light"), flex:1, fontSize:11 }}>Světlá</button>
+        <button onClick={() => { set("richVariant","dark"); set("logoVariant","black"); }} style={{ ...B(st.richVariant==="dark"), flex:1, fontSize:11 }}>Tmavá</button>
+        <button onClick={() => set("richVariant","color")} style={{ ...B(st.richVariant==="color"), flex:1, fontSize:11 }}>Barva</button>
       </div>
       {st.richVariant === "color" && (
         <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:8 }}>
-          <input type="color" value={st.richPanelColor} onChange={e => set("richPanelColor", e.target.value)} style={{ width:34, height:28, padding:2, border:"1px solid #ddd", borderRadius:4, cursor:"pointer" }} />
-          <span style={{ fontSize:12, color:"#888" }}>{st.richPanelColor}</span>
+          <input type="color" value={st.richPanelColor} onChange={e => set("richPanelColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
+          <span style={{ fontSize:12, color:t.textMuted }}>{st.richPanelColor}</span>
         </div>
       )}
     </div>
   );
 }
 
-function CustomControls({ st, dispatch, onImageUpload }) {
+function CustomControls({ st, dispatch, onImageUpload, t, mobile }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
+  const B   = (active) => mkBtn(active, UI, t);
   return (
-    <div style={S.card}>
+    <div style={card(t)}>
       <div style={{ display:"flex", gap:6, marginBottom:10 }}>
-        <button onClick={() => set("customSub","image")} style={{ ...mkBtn(st.customSub==="image"), flex:1, fontSize:11 }}>Foto</button>
-        <button onClick={() => { set("customSub","color"); set("logoVariant","white"); }} style={{ ...mkBtn(st.customSub==="color"), flex:1, fontSize:11 }}>Barva</button>
+        <button onClick={() => set("customSub","image")} style={{ ...B(st.customSub==="image"), flex:1, fontSize:11 }}>Foto</button>
+        <button onClick={() => { set("customSub","color"); set("logoVariant","white"); }} style={{ ...B(st.customSub==="color"), flex:1, fontSize:11 }}>Barva</button>
       </div>
       {st.customSub === "image" ? (<>
-        <label style={S.uploadLabel}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
-        <div style={S.lbl}>Tmavý překryv</div>
+        <label style={uploadLabel(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
+        <div style={lbl(t)}>Tmavý překryv</div>
         <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
-        <span style={{ fontSize:11, color:"#888" }}>{Math.round(st.overlayOpacity*100)} %</span>
+        <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.overlayOpacity*100)} %</span>
       </>) : (
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <input type="color" value={st.bgColor} onChange={e => set("bgColor", e.target.value)} style={{ width:34, height:28, padding:2, border:"1px solid #ddd", borderRadius:4, cursor:"pointer" }} />
-          <span style={{ fontSize:12, color:"#888" }}>{st.bgColor}</span>
+          <input type="color" value={st.bgColor} onChange={e => set("bgColor", e.target.value)} style={{ width:34, height:28, padding:2, border:`1px solid ${t.border}`, borderRadius:4, cursor:"pointer" }} />
+          <span style={{ fontSize:12, color:t.textMuted }}>{st.bgColor}</span>
         </div>
       )}
     </div>
   );
 }
 
-function Controls({ st, dispatch, onImageUpload, autoResize, selectAll }) {
+function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobile }) {
   const set = (key, val) => dispatch({ type: "SET", key, value: val });
+  const B   = (active) => mkBtn(active, UI, t);
+  const shared = { t, mobile };
   return (
     <>
-      <div style={S.lbl}>Formát</div>
+      <div style={lbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
-          <button key={f.id} onClick={() => set("fmt", f)} style={{ ...mkBtn(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
+          <button key={f.id} onClick={() => set("fmt", f)} style={{ ...B(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
             <span style={{ fontSize:11 }}>{f.label}</span>
             <span style={{ fontSize:10, opacity:0.7 }}>{f.sub}</span>
           </button>
         ))}
       </div>
       {st.bgMode === "template3" && (<>
-        <label style={S.lbl}>Nadtitulek</label>
-        <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný nadtitulek…" style={{ ...S.inp, height:36, resize:"none", overflow:"hidden" }} />
+        <label style={lbl(t)}>Nadtitulek</label>
+        <textarea value={st.supertitle} onChange={e => { set("supertitle", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný nadtitulek…" style={{ ...inp(t, mobile), height:36, resize:"none", overflow:"hidden" }} />
       </>)}
-      <label style={S.lbl}>Titulek</label>
-      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...S.inp, height:64, resize:"none", overflow:"hidden" }} />
-      <label style={S.lbl}>Perex</label>
-      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...S.inp, height:52, resize:"none", overflow:"hidden" }} />
-      <div style={{ ...S.lbl, marginTop:14 }}>Pozadí / šablona</div>
+      <label style={lbl(t)}>Titulek</label>
+      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...inp(t, mobile), height:44, resize:"none", overflow:"hidden" }} />
+      <label style={lbl(t)}>Perex</label>
+      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...inp(t, mobile), height:52, resize:"none", overflow:"hidden" }} />
+      <div style={{ ...lbl(t), marginTop:14 }}>Pozadí / šablona</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
-        <button onClick={() => set("bgMode","template2")} style={tplBtn(st.bgMode,"template2")}>
+        <button onClick={() => set("bgMode","template2")} style={tplBtn(st.bgMode,"template2",t)}>
           <span style={{ width:48, height:28, borderRadius:3, background:"#000", border:"2px solid #1B69BF", display:"block" }} /><span style={{ fontSize:10 }}>Černá</span>
         </button>
-        <button onClick={() => set("bgMode","template1")} style={tplBtn(st.bgMode,"template1")}>
+        <button onClick={() => set("bgMode","template1")} style={tplBtn(st.bgMode,"template1",t)}>
           <span style={{ width:48, height:28, borderRadius:3, background:"linear-gradient(to bottom,#6B9FCC,#000810)", display:"block" }} /><span style={{ fontSize:10 }}>Modrá</span>
         </button>
-        <button onClick={() => set("bgMode","template3")} style={tplBtn(st.bgMode,"template3")}>
+        <button onClick={() => set("bgMode","template3")} style={tplBtn(st.bgMode,"template3",t)}>
           <span style={{ width:48, height:28, borderRadius:3, overflow:"hidden", display:"flex", flexDirection:"column" }}>
             <span style={{ flex:"0 0 55%", background:"#aaa" }} /><span style={{ flex:"0 0 45%", background:"#1B69BF" }} />
           </span><span style={{ fontSize:10 }}>Rich</span>
         </button>
-        <button onClick={() => { set("bgMode","custom"); set("customSub","image"); }} style={tplBtn(st.bgMode,"custom")}>
+        <button onClick={() => { set("bgMode","custom"); set("customSub","image"); }} style={tplBtn(st.bgMode,"custom",t)}>
           <span style={{ width:48, height:28, borderRadius:3, background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", display:"block" }} /><span style={{ fontSize:10 }}>Vlastní</span>
         </button>
       </div>
-      {st.bgMode === "template3" && <RichControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} />}
-      {st.bgMode === "custom"     && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} />}
-      <AdvancedSettings st={st} dispatch={dispatch} />
+      {st.bgMode === "template3" && <RichControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} {...shared} />}
+      {st.bgMode === "custom"     && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} {...shared} />}
+      <AdvancedSettings st={st} dispatch={dispatch} {...shared} />
     </>
   );
 }
 
-function Preview({ canvasRef, fmt }) {
+function Preview({ canvasRef, fmt, t }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
-      <div style={{ textAlign:"center", fontSize:11, color:"#aaa", marginBottom:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+      <div style={{ textAlign:"center", fontSize:11, color:t.textMuted, marginBottom:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em" }}>
         Náhled — {fmt.label} ({fmt.w} × {fmt.h})
       </div>
       <canvas ref={canvasRef} style={{ borderRadius:10, boxShadow:"0 6px 28px rgba(0,0,0,0.18)", display:"block", maxWidth:"100%" }} />
@@ -376,30 +451,34 @@ function Preview({ canvasRef, fmt }) {
   );
 }
 
-function Actions({ fmt, onReset, onExport, mobile = false }) {
+function Actions({ fmt, onReset, onExport, mobile, t }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
+  const B   = (active, color) => mkBtn(active, color, t);
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:"1px solid #eee" }) }}>
-      <button onClick={onReset}  style={{ ...mkBtn(false), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
-      <button onClick={onExport} style={{ ...mkBtn(true),  width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
-      <div style={{ fontSize:10, color:"#bbb", textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
+    <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
+      <button onClick={onReset}  style={{ ...B(false), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
+      <button onClick={onExport} style={{ ...B(true),  width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
+      <div style={{ fontSize:10, color:t.textFaint, textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
     </div>
   );
 }
 
-function AppHeader({ logoCanvasRef }) {
+function AppHeader({ logoCanvasRef, onLogoClick, t }) {
   return (
-    <div style={{ fontSize:15, fontWeight:700, color:UI, display:"flex", alignItems:"center", gap:8 }}>
+    <div onClick={onLogoClick} style={{ fontSize:15, fontWeight:700, color:UI, display:"flex", alignItems:"center", gap:8, cursor:"pointer", userSelect:"none" }}>
       <canvas ref={logoCanvasRef} style={{ width:28, height:28, flexShrink:0 }} />
       Post Generator
     </div>
   );
 }
 
+// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [st, dispatch]                  = useReducer(reducer, DEFAULTS);
   const [confirmReset, setConfirmReset] = useState(false);
   const [isMobile, setIsMobile]         = useState(false);
+  const dark                            = useDarkMode();
+  const t                               = dark ? DARK : LIGHT;
 
   const canvasRef     = useRef(null);
   const imgRef        = useRef(null);
@@ -411,8 +490,9 @@ export default function App() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Fix #4: guard against duplicate Inter link in StrictMode
   useEffect(() => {
-    if (document.querySelector('link[href*="Inter"]')) return;
+    if (document.querySelector('link[href*="googleapis.com/css2?family=Inter"]')) return;
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap";
@@ -447,7 +527,8 @@ export default function App() {
   }, []);
 
   useEffect(() => { redraw(); }, [redraw]);
-  useEffect(() => { redraw(); }, [isMobile]);
+  // Fix logo disappearing on mobile layout switch
+  useEffect(() => { redraw(); drawSidebarLogo(); }, [isMobile]);
 
   useEffect(() => {
     document.fonts.load("bold 40px Inter").then(() => {
@@ -457,37 +538,24 @@ export default function App() {
   }, []);
 
   const autoResize = e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; };
-  const selectAll  = e => { const t = e.target; setTimeout(() => t.select(), 0); };
+  const selectAll  = e => { const el = e.target; setTimeout(() => el.select(), 0); };
 
   const handleImageUpload = useCallback((e, isRich = false) => {
     const file  = e.target.files?.[0]; if (!file) return;
     const input = e.target;
-    if (!ALLOWED_MIME.includes(file.type)) {
-      alert("Nepodporovaný formát souboru.\nPovolené typy: JPEG, PNG, WebP, GIF.");
-      input.value = ""; return;
-    }
-    if (file.size > MAX_FILE_BYTES) {
-      alert("Soubor je příliš velký (max 20 MB).");
-      input.value = ""; return;
-    }
+    if (!ALLOWED_MIME.includes(file.type)) { alert("Nepodporovaný formát souboru.\nPovolené typy: JPEG, PNG, WebP, GIF."); input.value = ""; return; }
+    if (file.size > MAX_FILE_BYTES) { alert("Soubor je příliš velký (max 20 MB)."); input.value = ""; return; }
     const reader = new FileReader();
     reader.onload = ev => {
       const dataUrl = ev.target.result;
       const allowedPrefixes = ALLOWED_MIME.map(m => `data:${m};base64,`);
-      if (!allowedPrefixes.some(p => dataUrl.startsWith(p))) {
-        console.warn("Blocked suspicious data URL"); input.value = ""; return;
-      }
+      if (!allowedPrefixes.some(p => dataUrl.startsWith(p))) { console.warn("Blocked suspicious data URL"); input.value = ""; return; }
       const img = new Image();
       img.onload = () => {
         imgRef.current = img;
         const canvas = canvasRef.current; if (!canvas) return;
-        const overrides = isRich
-          ? { bgMode: "template3", bgImage: img }
-          : { bgMode: "image",     bgImage: img };
-        if (!isRich) {
-          dispatch({ type: "SET", key: "bgMode",    value: "custom" });
-          dispatch({ type: "SET", key: "customSub", value: "image"  });
-        }
+        const overrides = isRich ? { bgMode:"template3", bgImage:img } : { bgMode:"image", bgImage:img };
+        if (!isRich) { dispatch({ type:"SET", key:"bgMode", value:"custom" }); dispatch({ type:"SET", key:"customSub", value:"image" }); }
         renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides });
       };
       img.onerror = () => { alert("Obrázek se nepodařilo načíst. Zkuste jiný soubor."); input.value = ""; };
@@ -497,63 +565,66 @@ export default function App() {
     reader.readAsDataURL(file);
   }, [st.fmt, buildOpts]);
 
-  const doReset = () => {
-    imgRef.current = null;
-    dispatch({ type: "RESET" });
-    setConfirmReset(false);
-  };
+  const doReset = () => { imgRef.current = null; dispatch({ type:"RESET" }); setConfirmReset(false); };
 
+  // Unique filename: template-format-XXXXXX.png
   const exportAs = () => {
     const { w, h } = st.fmt;
     const off = document.createElement("canvas"); off.width = w; off.height = h;
     drawPost(off.getContext("2d"), w, h, buildOpts());
+    const tplName  = TEMPLATE_NAMES[effectiveBgMode] || "vlastni";
+    const randomId = Math.floor(100000 + Math.random() * 900000);
     const a = document.createElement("a");
-    a.href = off.toDataURL("image/png", 0.93);
-    a.download = `aktualne-${st.fmt.id}.png`;
-    a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    a.href     = off.toDataURL("image/png", 0.93);
+    a.download = `aktualne-${tplName}-${st.fmt.id}-${randomId}.png`;
+    a.dispatchEvent(new MouseEvent("click", { bubbles:true, cancelable:true, view:window }));
   };
 
-  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs };
+  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll, t, mobile: isMobile };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t };
 
   return (
-    <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:"#f4f5f7", minHeight:"100vh" }}>
+    <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
+
       {confirmReset && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
-          <div style={{ background:"#fff", borderRadius:12, padding:"28px 32px", width:300, textAlign:"center", boxShadow:"0 8px 32px rgba(0,0,0,0.18)" }}>
-            <div style={{ fontSize:16, fontWeight:700, color:"#222", marginBottom:8 }}>Začít znovu?</div>
-            <div style={{ fontSize:13, color:"#666", marginBottom:24 }}>Skutečně chcete smazat dosavadní práci?</div>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
+          <div style={{ background:t.bgSidebar, borderRadius:12, padding:"28px 32px", width:300, textAlign:"center", boxShadow:"0 8px 32px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize:16, fontWeight:700, color:t.textPrimary, marginBottom:8 }}>Začít znovu?</div>
+            <div style={{ fontSize:13, color:t.textSecondary, marginBottom:24 }}>Skutečně chcete smazat dosavadní práci?</div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setConfirmReset(false)} style={{ ...mkBtn(false), flex:1, padding:"9px 0", fontSize:13 }}>Ne</button>
-              <button onClick={doReset} style={{ ...mkBtn(true), flex:1, padding:"9px 0", fontSize:13 }}>Ano</button>
+              <button onClick={() => setConfirmReset(false)} style={{ ...mkBtn(false,UI,t), flex:1, padding:"9px 0", fontSize:13 }}>Ne</button>
+              <button onClick={doReset}                      style={{ ...mkBtn(true, UI,t), flex:1, padding:"9px 0", fontSize:13 }}>Ano</button>
             </div>
           </div>
         </div>
       )}
+
       {isMobile ? (
         <div style={{ display:"flex", flexDirection:"column" }}>
-          <div style={{ background:"#fff", borderBottom:"1px solid #e6e6e6", padding:"14px 16px", position:"sticky", top:0, zIndex:10 }}>
-            <AppHeader logoCanvasRef={logoCanvasRef} />
+          <div style={{ background:t.bgSidebar, borderBottom:`1px solid ${t.border}`, padding:"14px 16px", position:"sticky", top:0, zIndex:10 }}>
+            <AppHeader logoCanvasRef={logoCanvasRef} onLogoClick={() => setConfirmReset(true)} t={t} />
           </div>
-          <div style={{ background:"#fff", padding:"16px 16px 8px", borderBottom:"1px solid #e6e6e6" }}>
+          <div style={{ background:t.bgSidebar, padding:"16px 16px 8px", borderBottom:`1px solid ${t.border}` }}>
             <Controls {...controlsProps} />
           </div>
-          <div style={{ background:"#f4f5f7", padding:"24px 16px 8px" }}>
-            <Preview canvasRef={canvasRef} fmt={st.fmt} />
+          <div style={{ background:t.bgMain, padding:"24px 16px 8px" }}>
+            <Preview canvasRef={canvasRef} fmt={st.fmt} t={t} />
           </div>
-          <div style={{ position:"sticky", bottom:0, background:"#fff", borderTop:"1px solid #eee", padding:"12px 16px" }}>
+          <div style={{ position:"sticky", bottom:0, background:t.bgSidebar, borderTop:`1px solid ${t.borderLight}`, padding:"12px 16px" }}>
             <Actions {...actionsProps} mobile />
           </div>
         </div>
       ) : (
         <div style={{ display:"flex", minHeight:"100vh" }}>
-          <div style={{ width:268, background:"#fff", borderRight:"1px solid #e6e6e6", padding:"20px 16px", overflowY:"auto", flexShrink:0 }}>
-            <div style={{ marginBottom:16 }}><AppHeader logoCanvasRef={logoCanvasRef} /></div>
+          <div style={{ width:268, background:t.bgSidebar, borderRight:`1px solid ${t.border}`, padding:"20px 16px", overflowY:"auto", flexShrink:0 }}>
+            <div style={{ marginBottom:16 }}>
+              <AppHeader logoCanvasRef={logoCanvasRef} onLogoClick={() => setConfirmReset(true)} t={t} />
+            </div>
             <Controls {...controlsProps} />
             <Actions {...actionsProps} />
           </div>
           <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:32 }}>
-            <Preview canvasRef={canvasRef} fmt={st.fmt} />
+            <Preview canvasRef={canvasRef} fmt={st.fmt} t={t} />
           </div>
         </div>
       )}
