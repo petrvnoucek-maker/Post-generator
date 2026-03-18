@@ -12,7 +12,8 @@ const FORMATS = [
 const FONTS = ["Inter", "Arial", "Georgia", "Times New Roman", "Verdana", "Impact", "Trebuchet MS"];
 const UI    = "#1B69BF";
 const BAR   = "#1B69BF";
-const PREVIEW_MAX = 380;
+const PREVIEW_MAX_DESKTOP = 570;
+const PREVIEW_MAX_MOBILE  = 380;
 const TEMPLATE_NAMES = {
   template1: "modra", template2: "cerna", template3: "rich",
   image: "foto", color: "vlastni",
@@ -223,10 +224,10 @@ function drawPost(ctx, w, h, opts) {
   if (opts.bgMode === "template2") return drawTemplateBlack(ctx, w, h, opts);
   return drawTemplateStandard(ctx, w, h, opts);
 }
-function renderToCanvas(canvas, fmt, opts) {
+function renderToCanvas(canvas, fmt, opts, previewMax = PREVIEW_MAX_DESKTOP) {
   const { w, h } = fmt;
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-  const s   = Math.min(PREVIEW_MAX / w, PREVIEW_MAX / h);
+  const s   = Math.min(previewMax / w, previewMax / h);
   canvas.width  = Math.round(w * s * dpr); canvas.height = Math.round(h * s * dpr);
   canvas.style.width  = Math.round(w * s) + "px"; canvas.style.height = Math.round(h * s) + "px";
   const ctx = canvas.getContext("2d");
@@ -683,8 +684,9 @@ export default function App() {
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current; if (!canvas) return;
-    renderToCanvas(canvas, st.fmt, buildOpts());
-  }, [st.fmt, buildOpts]);
+    const previewMax = isMobile ? PREVIEW_MAX_MOBILE : PREVIEW_MAX_DESKTOP;
+    renderToCanvas(canvas, st.fmt, buildOpts(), previewMax);
+  }, [st.fmt, buildOpts, isMobile]);
 
   const drawSidebarLogo = useCallback(() => {
     const c = logoCanvasRef.current; if (!c) return;
@@ -723,7 +725,7 @@ export default function App() {
         const canvas = canvasRef.current; if (!canvas) return;
         const overrides = isRich ? { bgMode:"template3", bgImage:img } : { bgMode:"image", bgImage:img };
         if (!isRich) { dispatch({ type:"SET", key:"bgMode", value:"custom" }); dispatch({ type:"SET", key:"customSub", value:"image" }); }
-        renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides, cropRect: null });
+        renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides, cropRect: null }, isMobile ? PREVIEW_MAX_MOBILE : PREVIEW_MAX_DESKTOP);
       };
       img.onerror = () => { alert("Obrázek se nepodařilo načíst. Zkuste jiný soubor."); input.value = ""; };
       img.src = dataUrl;
@@ -806,7 +808,7 @@ export default function App() {
         </div>
       ) : (
         <div style={{ display:"flex", minHeight:"100vh" }}>
-          <div style={{ width:268, background:t.bgSidebar, borderRight:`1px solid ${t.border}`, padding:"20px 16px", overflowY:"auto", flexShrink:0 }}>
+          <div style={{ width:300, background:t.bgSidebar, borderRight:`1px solid ${t.border}`, padding:"20px 18px", overflowY:"auto", flexShrink:0 }}>
             <div style={{ marginBottom:16 }}>
               <AppHeader logoCanvasRef={logoCanvasRef} onLogoClick={() => setConfirmReset(true)} t={t} />
             </div>
