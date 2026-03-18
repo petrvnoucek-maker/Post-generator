@@ -17,7 +17,7 @@ const BAR = "#1B69BF";
 const TEMPLATE_NAMES = { template1:"modra", template2:"cerna", template3:"rich", image:"foto", color:"vlastni" };
 
 const DEFAULTS = {
-  headline: "Sem patří text", subtext: "", supertitle: "", photoCredit: "",
+  headline: "Sem patří text", subtext: "", supertitle: "", photoCredit: "", creditColor: "#ffffff",
   textColor: "#ffffff", textAlign: "left", textPos: "bottom",
   fontFamily: "Inter", fontScale: 1.0,
   bgMode: "template2", logoVariant: "blue",
@@ -131,7 +131,7 @@ function drawPhotoPlaceholder(ctx, areaX, areaY, areaW, areaH, cyFrac = 0.5) {
   ctx.fillText("Nahrát fotku", cx, cy + ic * 0.65);
   ctx.restore();
 }
-function drawPhotoCredit(ctx, w, h, credit, textColor) {
+function drawPhotoCredit(ctx, w, h, credit, creditColor) {
   if (!credit || !credit.trim()) return;
   const text = `Foto: ${credit.trim()}`;
   const size = Math.round(w * 0.022);
@@ -139,8 +139,7 @@ function drawPhotoCredit(ctx, w, h, credit, textColor) {
   ctx.save();
   ctx.font = `${size}px Inter, Arial`;
   ctx.textBaseline = "alphabetic"; ctx.textAlign = "right";
-  ctx.globalAlpha = 0.75;
-  ctx.fillStyle = textColor || "#ffffff";
+  ctx.globalAlpha = 0.75; ctx.fillStyle = creditColor || "#ffffff";
   ctx.fillText(text, w - pad, h - pad);
   ctx.restore();
 }
@@ -173,9 +172,8 @@ function drawTemplateRich(ctx, w, h, opts) {
   hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * hs * 1.28 + hs * 0.88));
   ty += hLines.length * hs * 1.28;
   if (sLines.length) { ty += ss * 0.9; ctx.font = `${ss}px ${ff}`; ctx.globalAlpha = 0.72; sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * ss * 1.4 + ss * 0.88)); ctx.globalAlpha = 1; }
-  const creditColor = richVariant === "light" ? "#111111" : "#ffffff";
   const creditH = richPhotoPos === "top" ? photoH : h;
-  drawPhotoCredit(ctx, w, creditH, photoCredit, creditColor);
+  drawPhotoCredit(ctx, w, creditH, photoCredit, "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
 }
 function drawTemplateBlack(ctx, w, h, opts) {
@@ -225,7 +223,7 @@ function drawTemplateStandard(ctx, w, h, opts) {
   };
   const h1h = drawBlock(headline, hs, true, yBase);
   ctx.globalAlpha = 0.82; drawBlock(subtext, ss, false, yBase+h1h+ss*0.7); ctx.globalAlpha = 1;
-  if (bgMode === "image") drawPhotoCredit(ctx, w, h, photoCredit, textColor);
+  if (bgMode === "image") drawPhotoCredit(ctx, w, h, photoCredit, opts.creditColor || "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
 }
 function drawPost(ctx, w, h, opts) {
@@ -252,43 +250,6 @@ const mkInp   = (t, mobile) => ({ width:"100%", padding:"6px 8px", borderRadius:
 const mkLbl   = t => ({ display:"block", fontSize:11, fontWeight:600, color:t.textSecondary, marginBottom:4, marginTop:12, textTransform:"uppercase", letterSpacing:"0.05em" });
 const mkCard  = t => ({ background:t.bgCard, borderRadius:8, padding:10, marginBottom:4 });
 const mkUpload= t => ({ display:"block", background:t.uploadBg, border:`1px dashed ${t.borderDashed}`, borderRadius:6, padding:"8px 12px", textAlign:"center", cursor:"pointer", fontSize:12, color:t.textSecondary });
-
-// ── URL Loader ────────────────────────────────────────────────────────────────
-function UrlLoader({ onLoad, t, mobile }) {
-  const [url, setUrl]         = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
-
-  const handleLoad = async () => {
-    const trimmed = url.trim(); if (!trimmed) return;
-    setLoading(true); setError("");
-    try {
-      const res  = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(trimmed)}`);
-      const json = await res.json();
-      if (json.status !== "success") throw new Error("Nepodařilo se načíst metadata článku");
-      const { title, description, image } = json.data;
-      if (!title && !description) throw new Error("Článek neobsahuje meta tagy");
-      onLoad({ title, description, image: image?.url || null });
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{ marginBottom:8 }}>
-      <div style={mkLbl(t)}>URL článku</div>
-      <div style={{ display:"flex", gap:6 }}>
-        <input type="url" value={url} onChange={e => { setUrl(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleLoad()} placeholder="https://aktualne.cz/..." style={{ ...mkInp(t, mobile), fontSize: mobile ? 16 : 12 }} />
-        <button onClick={handleLoad} disabled={loading || !url.trim()} style={{ ...mkBtn(true, UI, t), whiteSpace:"nowrap", padding:"6px 12px", opacity:(!url.trim() || loading) ? 0.5 : 1 }}>
-          {loading ? "…" : "Načíst"}
-        </button>
-      </div>
-      {error && <div style={{ fontSize:11, color:"#e05", marginTop:4 }}>{error}</div>}
-    </div>
-  );
-}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 function AdvancedSettings({ st, dispatch, t, mobile }) {
@@ -330,6 +291,15 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
                 {[["bottom","Dole"],["center","Střed"],["top","Nahoře"]].map(([v,l]) => (
                   <button key={v} onClick={() => set("textPos", v)} style={{ ...B(st.textPos===v), flex:1, fontSize:11 }}>{l}</button>
                 ))}
+              </div>
+            </>
+          )}
+          {(st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image")) && (
+            <>
+              <div style={mkLbl(t)}>Barva kreditu</div>
+              <div style={{ display:"flex", gap:6 }}>
+                <button onClick={() => set("creditColor","#ffffff")} style={{ ...B(st.creditColor==="#ffffff"), flex:1, fontSize:11 }}>Bílá</button>
+                <button onClick={() => set("creditColor","#111111")} style={{ ...B(st.creditColor==="#111111"), flex:1, fontSize:11 }}>Černá</button>
               </div>
             </>
           )}
@@ -554,11 +524,11 @@ function CropModal({ img, cropW, cropH, initialCrop, onConfirm, onCancel }) {
   const containerRef  = useRef(null);
   const pvCanvasRef   = useRef(null);
 
-  const ds     = coverScale * crop.zoom;
-  const maxPX  = Math.max(0, (img.width  * ds - pw) / 2);
-  const maxPY  = Math.max(0, (img.height * ds - ph) / 2);
-  const cpx    = Math.max(-maxPX, Math.min(maxPX, crop.panX));
-  const cpy    = Math.max(-maxPY, Math.min(maxPY, crop.panY));
+  const ds      = coverScale * crop.zoom;
+  const maxPX   = Math.max(0, (img.width  * ds - pw) / 2);
+  const maxPY   = Math.max(0, (img.height * ds - ph) / 2);
+  const cpx     = Math.max(-maxPX, Math.min(maxPX, crop.panX));
+  const cpy     = Math.max(-maxPY, Math.min(maxPY, crop.panY));
   const scaledW = img.width  * ds;
   const scaledH = img.height * ds;
 
@@ -584,7 +554,6 @@ function CropModal({ img, cropW, cropH, initialCrop, onConfirm, onCancel }) {
     lastPos.current = { x:e.clientX, y:e.clientY };
   };
   const onMouseUp = () => { dragging.current = false; };
-
   const onTouchStart = e => {
     if (e.touches.length === 1) lastPos.current = { x:e.touches[0].clientX, y:e.touches[0].clientY };
     else if (e.touches.length === 2) lastPinchDist.current = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
@@ -632,7 +601,6 @@ export default function App() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [isMobile, setIsMobile]         = useState(false);
   const [cropOpen, setCropOpen]         = useState(false);
-
   const dark = useDarkMode();
   const t    = dark ? DARK : LIGHT;
 
@@ -668,7 +636,7 @@ export default function App() {
     fontScale: st.fontScale, textAlign: st.textAlign, textPos: st.textPos,
     logoVariant: st.logoVariant, richVariant: st.richVariant,
     richPhotoPos: st.richPhotoPos, richPanelColor: st.richPanelColor,
-    cropRect: st.cropRect, photoCredit: st.photoCredit,
+    cropRect: st.cropRect, photoCredit: st.photoCredit, creditColor: st.creditColor,
     ...overrides,
   }), [st, effectiveBgMode]);
 
