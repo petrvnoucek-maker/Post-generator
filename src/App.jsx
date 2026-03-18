@@ -263,36 +263,18 @@ function UrlLoader({ onLoad, t, mobile }) {
     const trimmed = url.trim(); if (!trimmed) return;
     setLoading(true); setError("");
     try {
-      // Try own serverless function first (works on Vercel)
-      let data = null;
-      try {
-        const res = await fetch(`/api/fetch-og?url=${encodeURIComponent(trimmed)}`);
-        const text = await res.text();
-        // Guard against HTML error pages
-        if (text.trim().startsWith("{")) {
-          data = JSON.parse(text);
-          if (!res.ok) throw new Error(data.error || "Chyba při načítání");
-        }
-      } catch (e) {
-        data = null;
+      const res  = await fetch(`/api/fetch-og?url=${encodeURIComponent(trimmed)}`);
+      const text = await res.text();
+
+      // Guard against HTML error pages (e.g. 404 from Vercel when function not deployed)
+      if (!text.trim().startsWith("{")) {
+        throw new Error("Funkce /api/fetch-og není dostupná. Zkontroluj nasazení na Vercelu.");
       }
-      // Fallback: public CORS proxy
-      if (!data || (!data.title && !data.description)) {
-        try {
-          const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(trimmed)}`;
-          const res2 = await fetch(proxyUrl);
-          const html = await res2.text();
-          const get  = prop => {
-            const m = html.match(new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']+)["']`, "i"))
-                   || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${prop}["']`, "i"));
-            return m ? m[1] : null;
-          };
-          data = { title: get("og:title"), description: get("og:description"), image: get("og:image") };
-        } catch (e2) {
-          throw new Error("Načítání URL funguje pouze na nasazené verzi aplikace (Vercel). Tady v náhledu není dostupné.");
-        }
-      }
-      if (!data.title && !data.description) throw new Error("Nepodařilo se načíst meta tagy článku");
+
+      const data = JSON.parse(text);
+      if (!res.ok) throw new Error(data.error || "Chyba při načítání");
+      if (!data.title && !data.description) throw new Error("Článek neobsahuje OG meta tagy nebo jsou blokovány.");
+
       onLoad(data);
     } catch (e) {
       setError(e.message);
