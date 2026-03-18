@@ -263,19 +263,12 @@ function UrlLoader({ onLoad, t, mobile }) {
     const trimmed = url.trim(); if (!trimmed) return;
     setLoading(true); setError("");
     try {
-      const res  = await fetch(`/api/fetch-og?url=${encodeURIComponent(trimmed)}`);
-      const text = await res.text();
-
-      // Guard against HTML error pages (e.g. 404 from Vercel when function not deployed)
-      if (!text.trim().startsWith("{")) {
-        throw new Error("Funkce /api/fetch-og není dostupná. Zkontroluj nasazení na Vercelu.");
-      }
-
-      const data = JSON.parse(text);
-      if (!res.ok) throw new Error(data.error || "Chyba při načítání");
-      if (!data.title && !data.description) throw new Error("Článek neobsahuje OG meta tagy nebo jsou blokovány.");
-
-      onLoad(data);
+      const res  = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(trimmed)}`);
+      const json = await res.json();
+      if (json.status !== "success") throw new Error("Nepodařilo se načíst metadata článku");
+      const { title, description, image } = json.data;
+      if (!title && !description) throw new Error("Článek neobsahuje meta tagy");
+      onLoad({ title, description, image: image?.url || null });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -423,13 +416,12 @@ function CustomControls({ st, dispatch, onImageUpload, t, mobile }) {
   );
 }
 
-function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobile, onOgLoad }) {
+function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobile }) {
   const set = (key, val) => dispatch({ type:"SET", key, value:val });
   const B   = active => mkBtn(active, UI, t);
   const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image");
   return (
     <>
-      <UrlLoader onLoad={onOgLoad} t={t} mobile={mobile} />
       <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
@@ -640,7 +632,7 @@ export default function App() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [isMobile, setIsMobile]         = useState(false);
   const [cropOpen, setCropOpen]         = useState(false);
-  const [ogPending, setOgPending]       = useState(null);
+
   const dark = useDarkMode();
   const t    = dark ? DARK : LIGHT;
 
@@ -735,23 +727,6 @@ export default function App() {
     reader.readAsDataURL(file);
   }, [st.fmt, buildOpts, previewMax]);
 
-  const applyOgData = data => {
-    if (data.title)       dispatch({ type:"SET", key:"headline", value: data.title });
-    if (data.description) dispatch({ type:"SET", key:"subtext",  value: data.description });
-    if (data.image) {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => { imgRef.current = img; dispatch({ type:"SET", key:"cropRect", value:null }); };
-      img.src = data.image;
-    }
-    setOgPending(null);
-  };
-
-  const handleOgLoad = data => {
-    if (st.headline !== DEFAULTS.headline || st.subtext || imgRef.current) setOgPending(data);
-    else applyOgData(data);
-  };
-
   const getCropDimensions = () => {
     const { w, h } = st.fmt;
     if (st.bgMode === "template3") return { cropW: w, cropH: Math.round(h * 0.55) };
@@ -780,25 +755,12 @@ export default function App() {
   };
 
   const hasImage      = !!imgRef.current;
-  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll, t, mobile: isMobile, onOgLoad: handleOgLoad };
+  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
   const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
-
-      {ogPending && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
-          <div style={{ background:t.bgSidebar, borderRadius:12, padding:"28px 32px", width:320, textAlign:"center", boxShadow:"0 8px 32px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize:16, fontWeight:700, color:t.textPrimary, marginBottom:8 }}>Přepsat obsah?</div>
-            <div style={{ fontSize:13, color:t.textSecondary, marginBottom:24 }}>Načtená data z článku přepíší aktuálně vyplněný titulek, perex a fotografii.</div>
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => setOgPending(null)} style={{ ...mkBtn(false, UI, t), flex:1, padding:"9px 0", fontSize:13 }}>Zrušit</button>
-              <button onClick={() => applyOgData(ogPending)} style={{ ...mkBtn(true, UI, t), flex:1, padding:"9px 0", fontSize:13 }}>Přepsat</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {confirmReset && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
