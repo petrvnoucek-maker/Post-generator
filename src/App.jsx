@@ -12,9 +12,13 @@ const FORMATS = [
   { id: "story",   label: "Stories",     sub: "9:16", w: 1080, h: 1920 },
 ];
 const FONTS = ["Inter", "Barlow", "Arial", "Georgia", "Times New Roman", "Verdana", "Impact", "Trebuchet MS"];
-const UI  = "#1B69BF";
-const BAR = "#1B69BF";
-const TEMPLATE_NAMES = { template1:"modra", template2:"cerna", template3:"rich", image:"foto", color:"vlastni" };
+const UI   = "#1B69BF";
+const BAR  = "#1B69BF";
+const ZENA = "#7B3FAF";
+const TEMPLATE_NAMES = { template1:"modra", template2:"cerna", template3:"rich", image:"foto", color:"vlastni", templateZena:"zena" };
+
+const ZENA_LOGO_B64 = "data:image/png;base64,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";
+const _zenaLogoImg = (() => { let img = null; return () => { if (!img) { img = new Image(); img.src = ZENA_LOGO_B64; } return img; }; })();
 
 const DEFAULTS = {
   headline: "Sem patří text", subtext: "", supertitle: "", photoCredit: "", creditColor: "#ffffff",
@@ -23,6 +27,7 @@ const DEFAULTS = {
   bgMode: "template2", logoVariant: "blue",
   customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.45,
   richVariant: "light", richPhotoPos: "top", richPanelColor: "#1B69BF",
+  zenaOverlay: "dark", zenaOverlayOpacity: 0.85,
   fmt: FORMATS[0], advancedOpen: false, cropRect: null,
 };
 
@@ -144,6 +149,22 @@ function drawPhotoCredit(ctx, w, h, credit, creditColor) {
   ctx.restore();
 }
 
+// ── Žena logo ─────────────────────────────────────────────────────────────────
+function drawZenaLogo(ctx, w, h) {
+  const img    = _zenaLogoImg();
+  const logoW  = w * 0.285;
+  const logoH  = logoW * (60 / 138);
+  const padX   = w * 0.052;
+  const padY   = h * 0.038;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur  = w * 0.014;
+  if (img.complete && img.naturalWidth > 0) {
+    ctx.drawImage(img, padX, padY, logoW, logoH);
+  }
+  ctx.restore();
+}
+
 // ── Template draw functions ───────────────────────────────────────────────────
 function drawTemplateRich(ctx, w, h, opts) {
   const { bgImage, headline, subtext, supertitle, fontFamily, fontScale,
@@ -226,9 +247,75 @@ function drawTemplateStandard(ctx, w, h, opts) {
   if (bgMode === "image") drawPhotoCredit(ctx, w, h, photoCredit, opts.creditColor || "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
 }
+function drawTemplateZena(ctx, w, h, opts) {
+  const { bgImage, headline, subtext, fontFamily, fontScale, cropRect, photoCredit, zenaOverlay, zenaOverlayOpacity } = opts;
+  const op = zenaOverlayOpacity ?? 0.85;
+  const ff = `${fontFamily}, Arial, sans-serif`;
+  const hs = Math.round(w * 0.065 * fontScale);
+  const ss = Math.round(w * 0.034 * fontScale);
+  const pad  = w * 0.06;
+  const maxW = w * 0.88;
+
+  // 1. Full-bleed photo or placeholder
+  if (bgImage) {
+    drawCropped(ctx, bgImage, 0, 0, w, h, cropRect);
+  } else {
+    drawPhotoPlaceholder(ctx, 0, 0, w, h, 0.35);
+  }
+
+  // 2. Gradient overlay – tmavý nebo světlý fialový
+  const gradY = h * 0.28;
+  const g = ctx.createLinearGradient(0, gradY, 0, h);
+  if (zenaOverlay === "light") {
+    g.addColorStop(0,    `rgba(88, 42, 148, 0)`);
+    g.addColorStop(0.38, `rgba(88, 42, 148, ${(op * 0.75).toFixed(2)})`);
+    g.addColorStop(1,    `rgba(78, 36, 132, ${op.toFixed(2)})`);
+  } else {
+    g.addColorStop(0,    `rgba(8, 3, 18, 0)`);
+    g.addColorStop(0.38, `rgba(8, 3, 18, ${(op * 0.80).toFixed(2)})`);
+    g.addColorStop(1,    `rgba(5, 2, 12, ${op.toFixed(2)})`);
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, gradY, w, h - gradY);
+
+  // 3. Text blok – bottom-up
+  const lh1 = hs * 1.28;
+  const lh2 = ss * 1.4;
+  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, maxW) : [];
+  const blockH = hLines.length * lh1 + (sLines.length ? ss * 0.85 + sLines.length * lh2 : 0);
+  const botPad = h * 0.062;
+  let ty = h - botPad - blockH;
+
+  ctx.textAlign    = "left";
+  ctx.textBaseline = "alphabetic";
+
+  // Titulek
+  ctx.font      = `bold ${hs}px ${ff}`;
+  ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = 1;
+  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh1 + hs * 0.88));
+  ty += hLines.length * lh1;
+
+  // Perex
+  if (sLines.length) {
+    ty += ss * 0.85;
+    ctx.font = `${ss}px ${ff}`;
+    ctx.globalAlpha = 0.85;
+    sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh2 + ss * 0.88));
+    ctx.globalAlpha = 1;
+  }
+
+  // 4. Kredit fotografa
+  drawPhotoCredit(ctx, w, h, photoCredit, "#ffffff");
+
+  // 5. Logo Žena
+  drawZenaLogo(ctx, w, h);
+}
 function drawPost(ctx, w, h, opts) {
-  if (opts.bgMode === "template3") return drawTemplateRich(ctx, w, h, opts);
-  if (opts.bgMode === "template2") return drawTemplateBlack(ctx, w, h, opts);
+  if (opts.bgMode === "template3")    return drawTemplateRich(ctx, w, h, opts);
+  if (opts.bgMode === "template2")    return drawTemplateBlack(ctx, w, h, opts);
+  if (opts.bgMode === "templateZena") return drawTemplateZena(ctx, w, h, opts);
   return drawTemplateStandard(ctx, w, h, opts);
 }
 function renderToCanvas(canvas, fmt, opts, previewMax = PREVIEW_MAX_DESKTOP) {
@@ -257,6 +344,7 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
   const setOpen = val => dispatch({ type:"SET", key:"advancedOpen", value:val });
   const set     = (key, val) => dispatch({ type:"SET", key, value:val });
   const B       = active => mkBtn(active, UI, t);
+  const isZena  = st.bgMode === "templateZena";
   return (
     <>
       <button onClick={() => setOpen(!open)} style={{ width:"100%", marginTop:10, padding:"8px 10px", borderRadius:7, border:`1px solid ${open ? UI : t.border}`, background: open ? t.advActiveBg : t.bgAdvanced, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontWeight:600, color: open ? UI : t.textSecondary }}>
@@ -265,16 +353,20 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
       </button>
       {open && (
         <div style={{ marginTop:4, padding:"10px 10px 4px", background:t.bgAdvanced, borderRadius:7, border:`1px solid ${t.borderLight}` }}>
-          <div style={mkLbl(t)}>Logo</div>
-          <div style={{ display:"flex", gap:6, marginBottom:6 }}>
-            {[["blue",UI,"#fff","Modré"],["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"]].map(([v,bg,fg,lab]) => (
-              <button key={v} onClick={() => set("logoVariant", v)} style={{ ...B(st.logoVariant===v), flex:1, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 4px" }}>
-                <span style={{ width:20, height:20, borderRadius:"50%", background:bg, border:`1.5px solid ${t.borderDashed}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:fg, fontWeight:700 }}>A</span>
-                <span>{lab}</span>
-              </button>
-            ))}
-          </div>
-          {st.bgMode !== "template2" && st.bgMode !== "template3" && (
+          {!isZena && (
+            <>
+              <div style={mkLbl(t)}>Logo</div>
+              <div style={{ display:"flex", gap:6, marginBottom:6 }}>
+                {[["blue",UI,"#fff","Modré"],["white","#fff","#2B5F9E","Bílé"],["black","#111","#fff","Černé"]].map(([v,bg,fg,lab]) => (
+                  <button key={v} onClick={() => set("logoVariant", v)} style={{ ...B(st.logoVariant===v), flex:1, fontSize:11, display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"6px 4px" }}>
+                    <span style={{ width:20, height:20, borderRadius:"50%", background:bg, border:`1.5px solid ${t.borderDashed}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:fg, fontWeight:700 }}>A</span>
+                    <span>{lab}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {st.bgMode !== "template2" && st.bgMode !== "template3" && !isZena && (
             <>
               <div style={mkLbl(t)}>Zarovnání</div>
               <div style={{ display:"flex", gap:6 }}>
@@ -284,7 +376,7 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
               </div>
             </>
           )}
-          {st.bgMode !== "template3" && (
+          {st.bgMode !== "template3" && !isZena && (
             <>
               <div style={mkLbl(t)}>Pozice textu</div>
               <div style={{ display:"flex", gap:6 }}>
@@ -317,7 +409,7 @@ function AdvancedSettings({ st, dispatch, t, mobile }) {
             <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.fontScale*100)} %</span>
             <button onClick={() => set("fontScale", 1.0)} style={{ fontSize:10, color:UI, background:"none", border:"none", cursor:"pointer", padding:0 }}>reset</button>
           </div>
-          {st.bgMode !== "template3" && (
+          {st.bgMode !== "template3" && !isZena && (
             <>
               <div style={mkLbl(t)}>Barva textu</div>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
@@ -337,7 +429,7 @@ function RichControls({ st, dispatch, onImageUpload, t, mobile }) {
   const B   = active => mkBtn(active, UI, t);
   return (
     <div style={mkCard(t)}>
-      <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true)} style={{ display:"none" }} /></label>
+      <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, true, false)} style={{ display:"none" }} /></label>
       <div style={mkLbl(t)}>Pozice fotky</div>
       <div style={{ display:"flex", gap:6 }}>
         {[["top","Nahoře"],["bottom","Dole"]].map(([v,l]) => (
@@ -371,7 +463,7 @@ function CustomControls({ st, dispatch, onImageUpload, t, mobile }) {
       </div>
       {st.customSub === "image" ? (
         <>
-          <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false)} style={{ display:"none" }} /></label>
+          <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false, false)} style={{ display:"none" }} /></label>
           <div style={mkLbl(t)}>Tmavý překryv</div>
           <input type="range" min="0" max="0.9" step="0.05" value={st.overlayOpacity} onChange={e => set("overlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
           <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.overlayOpacity*100)} %</span>
@@ -386,10 +478,28 @@ function CustomControls({ st, dispatch, onImageUpload, t, mobile }) {
   );
 }
 
+function ZenaControls({ st, dispatch, onImageUpload, t }) {
+  const set = (key, val) => dispatch({ type:"SET", key, value:val });
+  const B   = active => mkBtn(active, ZENA, t);
+  return (
+    <div style={mkCard(t)}>
+      <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false, true)} style={{ display:"none" }} /></label>
+      <div style={mkLbl(t)}>Tón překryvu</div>
+      <div style={{ display:"flex", gap:6 }}>
+        <button onClick={() => set("zenaOverlay","dark")}  style={{ ...B(st.zenaOverlay==="dark"),  flex:1, fontSize:11 }}>Tmavý</button>
+        <button onClick={() => set("zenaOverlay","light")} style={{ ...B(st.zenaOverlay==="light"), flex:1, fontSize:11 }}>Světlý (fialový)</button>
+      </div>
+      <div style={mkLbl(t)}>Intenzita překryvu</div>
+      <input type="range" min="0" max="1" step="0.05" value={st.zenaOverlayOpacity} onChange={e => set("zenaOverlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
+      <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.zenaOverlayOpacity * 100)} %</span>
+    </div>
+  );
+}
+
 function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobile }) {
   const set = (key, val) => dispatch({ type:"SET", key, value:val });
   const B   = active => mkBtn(active, UI, t);
-  const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image");
+  const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image") || st.bgMode === "templateZena";
   return (
     <>
       <div style={mkLbl(t)}>Formát</div>
@@ -418,7 +528,7 @@ function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobil
         </>
       )}
       <div style={{ ...mkLbl(t), marginTop:14 }}>Pozadí / šablona</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
         <button onClick={() => { set("bgMode","template2"); set("logoVariant","blue"); }} style={tplBtn(st.bgMode,"template2",t)}>
           <span style={{ width:48, height:28, borderRadius:3, background:"#000", border:"2px solid #1B69BF", display:"block" }} /><span style={{ fontSize:10 }}>Černá</span>
         </button>
@@ -433,9 +543,17 @@ function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobil
         <button onClick={() => { set("bgMode","custom"); set("customSub","image"); set("logoVariant","blue"); }} style={tplBtn(st.bgMode,"custom",t)}>
           <span style={{ width:48, height:28, borderRadius:3, background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", display:"block" }} /><span style={{ fontSize:10 }}>Vlastní</span>
         </button>
+        <button onClick={() => set("bgMode","templateZena")} style={tplBtn(st.bgMode,"templateZena",t)}>
+          <span style={{ width:48, height:28, borderRadius:3, position:"relative", overflow:"hidden", display:"block", background:"#888" }}>
+            <span style={{ position:"absolute", bottom:0, left:0, right:0, height:"65%", background:"linear-gradient(to bottom, transparent, rgba(78,35,130,0.92))" }} />
+            <img src={ZENA_LOGO_B64} alt="Žena" style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:"80%", height:"auto", display:"block" }} />
+          </span>
+          <span style={{ fontSize:10 }}>Žena.cz</span>
+        </button>
       </div>
-      {st.bgMode === "template3" && <RichControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
-      {st.bgMode === "custom"     && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
+      {st.bgMode === "template3"    && <RichControls   st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
+      {st.bgMode === "custom"       && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
+      {st.bgMode === "templateZena" && <ZenaControls   st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} />}
       <AdvancedSettings st={st} dispatch={dispatch} t={t} mobile={mobile} />
     </>
   );
@@ -444,8 +562,9 @@ function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobil
 function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customSub, hasImage }) {
   const fileInputRef = useRef(null);
   const [hovered, setHovered] = useState(false);
-  const isPhotoMode = bgMode === "template3" || (bgMode === "custom" && customSub === "image");
+  const isPhotoMode = bgMode === "template3" || (bgMode === "custom" && customSub === "image") || bgMode === "templateZena";
   const isRich = bgMode === "template3";
+  const isZena = bgMode === "templateZena";
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
       <div style={{ textAlign:"center", fontSize:11, color:t.textMuted, marginBottom:10, fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em" }}>
@@ -461,7 +580,7 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
                 📁 Klikni pro nahrání fotky
               </div>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => onImageUpload(e, isRich)} />
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display:"none" }} onChange={e => onImageUpload(e, isRich, isZena)} />
           </>
         )}
       </div>
@@ -637,6 +756,7 @@ export default function App() {
     logoVariant: st.logoVariant, richVariant: st.richVariant,
     richPhotoPos: st.richPhotoPos, richPanelColor: st.richPanelColor,
     cropRect: st.cropRect, photoCredit: st.photoCredit, creditColor: st.creditColor,
+    zenaOverlay: st.zenaOverlay, zenaOverlayOpacity: st.zenaOverlayOpacity,
     ...overrides,
   }), [st, effectiveBgMode]);
 
@@ -662,7 +782,9 @@ export default function App() {
     document.fonts.load("bold 40px Inter").then(() => {
       document.fonts.load("bold 40px Barlow").then(() => {
         const MX = getMeasureCtx(); MX.font = "bold 40px Inter"; MX.measureText("A");
-        redraw(); drawSidebarLogo();
+        const zi = _zenaLogoImg();
+        if (zi.complete) { redraw(); drawSidebarLogo(); }
+        else { zi.onload = () => { redraw(); drawSidebarLogo(); }; redraw(); drawSidebarLogo(); }
       });
     });
   }, []);
@@ -670,7 +792,7 @@ export default function App() {
   const autoResize = e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; };
   const selectAll  = e => { const el = e.target; setTimeout(() => el.select(), 0); };
 
-  const handleImageUpload = useCallback((e, isRich = false) => {
+  const handleImageUpload = useCallback((e, isRich = false, isZena = false) => {
     const file = e.target.files?.[0]; if (!file) return;
     const input = e.target;
     if (!ALLOWED_MIME.includes(file.type)) { alert("Nepodporovaný formát souboru.\nPovolené typy: JPEG, PNG, WebP, GIF."); input.value = ""; return; }
@@ -684,8 +806,16 @@ export default function App() {
         imgRef.current = img;
         dispatch({ type:"SET", key:"cropRect", value:null });
         const canvas = canvasRef.current; if (!canvas) return;
-        const overrides = isRich ? { bgMode:"template3", bgImage:img } : { bgMode:"image", bgImage:img };
-        if (!isRich) { dispatch({ type:"SET", key:"bgMode", value:"custom" }); dispatch({ type:"SET", key:"customSub", value:"image" }); }
+        let overrides;
+        if (isRich) {
+          overrides = { bgMode:"template3", bgImage:img };
+        } else if (isZena) {
+          overrides = { bgMode:"templateZena", bgImage:img };
+        } else {
+          overrides = { bgMode:"image", bgImage:img };
+          dispatch({ type:"SET", key:"bgMode", value:"custom" });
+          dispatch({ type:"SET", key:"customSub", value:"image" });
+        }
         renderToCanvas(canvas, st.fmt, { ...buildOpts(), ...overrides, cropRect:null }, previewMax);
       };
       img.onerror = () => { alert("Obrázek se nepodařilo načíst. Zkuste jiný soubor."); input.value = ""; };
