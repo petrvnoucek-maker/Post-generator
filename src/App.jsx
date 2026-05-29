@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useReducer } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useReducer } from "react";
 
 const ALLOWED_MIME        = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_BYTES      = 20 * 1024 * 1024;
@@ -25,9 +25,10 @@ const DEFAULTS = {
   textColor: "#ffffff", textAlign: "left", textPos: "bottom",
   fontFamily: "Inter", fontScale: 1.0,
   bgMode: "template2", logoVariant: "blue",
-  customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.45,
+  customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.40,
+  showPerex: false,
   richVariant: "light", richPhotoPos: "top", richPanelColor: "#1B69BF",
-  zenaOverlay: "dark", zenaOverlayOpacity: 0.85,
+  zenaOverlay: "light", zenaOverlayOpacity: 0.85,
   fmt: FORMATS[0], advancedOpen: false, cropRect: null,
 };
 
@@ -78,6 +79,15 @@ function wrapLines(fontStr, text, maxW) {
   }
   if (line.trim()) lines.push(line.trim());
   return lines;
+}
+// Vrátí největší zmenšovací faktor (≤1, krok `step`) tak, aby measureFn(fit) ≤ availH.
+function fitDownscale(measureFn, availH, minFit = 0.55, step = 0.04) {
+  let fit = 1;
+  while (fit > minFit) {
+    if (measureFn(fit) <= availH) break;
+    fit -= step;
+  }
+  return Math.max(minFit, fit);
 }
 
 // ── Draw utilities ────────────────────────────────────────────────────────────
@@ -181,18 +191,29 @@ function drawTemplateRich(ctx, w, h, opts) {
   else drawPhotoPlaceholder(ctx, 0, photoY, w, photoH, 0.5);
   const textCol   = richVariant === "light" ? "#111111" : "#ffffff";
   const accentCol = richVariant === "light" ? UI : richVariant === "color" ? "#ffffff" : "#6AABF0";
-  const stSize = Math.round(w * 0.034 * fontScale);
+  const stSize0 = Math.round(w * 0.034 * fontScale);
   const hasSuper = !!(supertitle && supertitle.trim());
-  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, maxW);
-  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, maxW) : [];
-  const blockH = (hasSuper ? stSize * 1.7 : 0) + hLines.length * hs * 1.28 + (sLines.length ? ss * 0.9 + sLines.length * ss * 1.4 : 0);
+  const availH = panelH * 0.80;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs*f, ssF = ss*f, stF = stSize0*f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, maxW);
+      return (hasSuper ? stF*1.7 : 0) + hl.length*hsF*1.28 + ssF*0.9 + sl.length*ssF*1.4;
+    }, availH);
+  }
+  const hsF = hs*fit, ssF = ss*fit, stSize = stSize0*fit;
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, maxW) : [];
+  const blockH = (hasSuper ? stSize * 1.7 : 0) + hLines.length * hsF * 1.28 + (sLines.length ? ssF * 0.9 + sLines.length * ssF * 1.4 : 0);
   let ty = panelY + Math.max(panelH * 0.13, (panelH - blockH) / 2);
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   if (hasSuper) { ctx.font = `bold ${stSize}px ${ff}`; ctx.fillStyle = accentCol; ctx.fillText(supertitle, pad, ty + stSize * 0.88); ty += stSize * 1.7; }
-  ctx.font = `bold ${hs}px ${ff}`; ctx.fillStyle = textCol;
-  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * hs * 1.28 + hs * 0.88));
-  ty += hLines.length * hs * 1.28;
-  if (sLines.length) { ty += ss * 0.9; ctx.font = `${ss}px ${ff}`; ctx.globalAlpha = 0.72; sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * ss * 1.4 + ss * 0.88)); ctx.globalAlpha = 1; }
+  ctx.font = `bold ${hsF}px ${ff}`; ctx.fillStyle = textCol;
+  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * hsF * 1.28 + hsF * 0.88));
+  ty += hLines.length * hsF * 1.28;
+  if (sLines.length) { ty += ssF * 0.9; ctx.font = `${ssF}px ${ff}`; ctx.globalAlpha = 0.72; sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * ssF * 1.4 + ssF * 0.88)); ctx.globalAlpha = 1; }
   const creditH = richPhotoPos === "top" ? photoH : h;
   drawPhotoCredit(ctx, w, creditH, photoCredit, "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
@@ -203,16 +224,28 @@ function drawTemplateBlack(ctx, w, h, opts) {
   const hs = Math.round(w * 0.075 * fontScale), ss = Math.round(w * 0.038 * fontScale);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
   const bx = w*0.07, bw2 = Math.max(4, w*0.007), textX = bx+bw2+w*0.04, tMaxW = w*0.76;
-  const lh1 = hs*1.28, lh2 = ss*1.4;
-  const yBase = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
-  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, tMaxW);
-  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, tMaxW) : [];
-  const totalH = hLines.length*lh1 + (sLines.length ? ss*0.8+sLines.length*lh2 : 0);
-  ctx.fillStyle = BAR; ctx.fillRect(bx, yBase-hs*0.12, bw2, totalH+hs*0.15);
-  ctx.font = `bold ${hs}px ${ff}`; ctx.fillStyle = textColor;
+  const topLimit = h*0.08, bottomLimit = h*0.93, availH = bottomLimit - topLimit;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs*f, ssF = ss*f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, tMaxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, tMaxW);
+      return hl.length*hsF*1.28 + ssF*0.8 + sl.length*ssF*1.4;
+    }, availH);
+  }
+  const hsF = hs*fit, ssF = ss*fit;
+  const lh1 = hsF*1.28, lh2 = ssF*1.4;
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, tMaxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, tMaxW) : [];
+  const totalH = hLines.length*lh1 + (sLines.length ? ssF*0.8+sLines.length*lh2 : 0);
+  const desiredY = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
+  const yBase = Math.max(topLimit, Math.min(desiredY, bottomLimit - totalH));
+  ctx.fillStyle = BAR; ctx.fillRect(bx, yBase-hsF*0.12, bw2, totalH+hsF*0.15);
+  ctx.font = `bold ${hsF}px ${ff}`; ctx.fillStyle = textColor;
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  hLines.forEach((l, i) => ctx.fillText(l, textX, yBase+i*lh1+hs*0.88));
-  if (sLines.length) { ctx.font = `${ss}px ${ff}`; ctx.globalAlpha = 0.78; const sy2 = yBase+hLines.length*lh1+ss*1.1; sLines.forEach((l, i) => ctx.fillText(l, textX, sy2+i*lh2)); ctx.globalAlpha = 1; }
+  hLines.forEach((l, i) => ctx.fillText(l, textX, yBase+i*lh1+hsF*0.88));
+  if (sLines.length) { ctx.font = `${ssF}px ${ff}`; ctx.globalAlpha = 0.78; const sy2 = yBase+hLines.length*lh1+ssF*1.1; sLines.forEach((l, i) => ctx.fillText(l, textX, sy2+i*lh2)); ctx.globalAlpha = 1; }
   drawLogo(ctx, w, h, logoVariant);
 }
 function drawTemplateStandard(ctx, w, h, opts) {
@@ -228,22 +261,41 @@ function drawTemplateStandard(ctx, w, h, opts) {
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   } else if (bgMode === "image" && bgImage) {
     drawCropped(ctx, bgImage, 0, 0, w, h, cropRect);
-    ctx.fillStyle = `rgba(0,0,0,${overlayOpacity})`; ctx.fillRect(0, 0, w, h);
+    const gy = h * 0.28;
+    const og = ctx.createLinearGradient(0, gy, 0, h);
+    og.addColorStop(0,    "rgba(0,0,0,0)");
+    og.addColorStop(0.38, `rgba(0,0,0,${(overlayOpacity * 0.8).toFixed(2)})`);
+    og.addColorStop(1,    `rgba(0,0,0,${overlayOpacity.toFixed(2)})`);
+    ctx.fillStyle = og; ctx.fillRect(0, gy, w, h - gy);
   } else if (bgMode === "image") {
     drawPhotoPlaceholder(ctx, 0, 0, w, h, 0.33);
   } else {
     ctx.fillStyle = bgColor; ctx.fillRect(0, 0, w, h);
   }
-  const yBase = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
+  const topLimit = h*0.08, bottomLimit = h*0.93, availH = bottomLimit - topLimit;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs*f, ssF = ss*f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, maxW);
+      return hl.length*hsF*1.28 + ssF*0.7 + sl.length*ssF*1.4;
+    }, availH);
+  }
+  const hsF = hs*fit, ssF = ss*fit;
   ctx.fillStyle = textColor; ctx.textBaseline = "alphabetic";
-  const drawBlock = (text, size, bold, y) => {
-    const fStr = `${bold ? "bold " : ""}${size}px ${ff}`; ctx.font = fStr;
-    const lines = wrapLines(fStr, text, maxW); const lh = size * (bold ? 1.28 : 1.4);
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, maxW) : [];
+  const h1h = hLines.length * hsF * 1.28;
+  const totalH = h1h + (sLines.length ? ssF*0.7 + sLines.length*ssF*1.4 : 0);
+  const desiredY = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
+  const yBase = Math.max(topLimit, Math.min(desiredY, bottomLimit - totalH));
+  const drawLines = (lines, size, lh, y) => {
     lines.forEach((l, i) => { ctx.textAlign = textAlign; const x = textAlign==="center" ? w/2 : textAlign==="right" ? pad+maxW : pad; ctx.fillText(l, x, y+i*lh+size*0.88); });
-    return lines.length * lh;
   };
-  const h1h = drawBlock(headline, hs, true, yBase);
-  ctx.globalAlpha = 0.82; drawBlock(subtext, ss, false, yBase+h1h+ss*0.7); ctx.globalAlpha = 1;
+  ctx.font = `bold ${hsF}px ${ff}`;
+  drawLines(hLines, hsF, hsF*1.28, yBase);
+  if (sLines.length) { ctx.font = `${ssF}px ${ff}`; ctx.globalAlpha = 0.82; drawLines(sLines, ssF, ssF*1.4, yBase + h1h + ssF*0.7); ctx.globalAlpha = 1; }
   if (bgMode === "image") drawPhotoCredit(ctx, w, h, photoCredit, opts.creditColor || "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
 }
@@ -278,31 +330,43 @@ function drawTemplateZena(ctx, w, h, opts) {
   ctx.fillStyle = g;
   ctx.fillRect(0, gradY, w, h - gradY);
 
-  // 3. Text blok – bottom-up
-  const lh1 = hs * 1.28;
-  const lh2 = ss * 1.4;
-  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, maxW);
-  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, maxW) : [];
-  const blockH = hLines.length * lh1 + (sLines.length ? ss * 0.85 + sLines.length * lh2 : 0);
-  const botPad = h * 0.062;
+  // 3. Text blok – bottom-up, s auto-fitem
+  const botPad   = h * 0.062;
+  const topLimit = h * 0.20;                 // spodní hrana loga + rezerva
+  const availH   = (h - botPad) - topLimit;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs * f, ssF = ss * f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, maxW);
+      return hl.length * hsF * 1.28 + ssF * 0.85 + sl.length * ssF * 1.4;
+    }, availH);
+  }
+  const hsF = hs * fit, ssF = ss * fit;
+  const lh1 = hsF * 1.28;
+  const lh2 = ssF * 1.4;
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, maxW) : [];
+  const blockH = hLines.length * lh1 + (sLines.length ? ssF * 0.85 + sLines.length * lh2 : 0);
   let ty = h - botPad - blockH;
 
   ctx.textAlign    = "left";
   ctx.textBaseline = "alphabetic";
 
   // Titulek
-  ctx.font      = `bold ${hs}px ${ff}`;
+  ctx.font      = `bold ${hsF}px ${ff}`;
   ctx.fillStyle = "#ffffff";
   ctx.globalAlpha = 1;
-  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh1 + hs * 0.88));
+  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh1 + hsF * 0.88));
   ty += hLines.length * lh1;
 
   // Perex
   if (sLines.length) {
-    ty += ss * 0.85;
-    ctx.font = `${ss}px ${ff}`;
+    ty += ssF * 0.85;
+    ctx.font = `${ssF}px ${ff}`;
     ctx.globalAlpha = 0.85;
-    sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh2 + ss * 0.88));
+    sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh2 + ssF * 0.88));
     ctx.globalAlpha = 1;
   }
 
@@ -486,26 +550,163 @@ function ZenaControls({ st, dispatch, onImageUpload, t }) {
       <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false, true)} style={{ display:"none" }} /></label>
       <div style={mkLbl(t)}>Tón překryvu</div>
       <div style={{ display:"flex", gap:6 }}>
-        <button onClick={() => set("zenaOverlay","dark")}  style={{ ...B(st.zenaOverlay==="dark"),  flex:1, fontSize:11 }}>Tmavý</button>
         <button onClick={() => set("zenaOverlay","light")} style={{ ...B(st.zenaOverlay==="light"), flex:1, fontSize:11 }}>Světlý (fialový)</button>
+        <button onClick={() => set("zenaOverlay","dark")}  style={{ ...B(st.zenaOverlay==="dark"),  flex:1, fontSize:11 }}>Tmavý</button>
       </div>
       <div style={mkLbl(t)}>Intenzita překryvu</div>
-      <input type="range" min="0" max="1" step="0.05" value={st.zenaOverlayOpacity} onChange={e => set("zenaOverlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
+      <input type="range" min="0" max="1" step="0.05" value={st.zenaOverlayOpacity} onChange={e => set("zenaOverlayOpacity", parseFloat(e.target.value))} style={{ width:"100%", accentColor: ZENA }} />
       <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.zenaOverlayOpacity * 100)} %</span>
     </div>
   );
 }
 
-function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobile }) {
+function AutoTextarea({ value, onChange, onFocus, placeholder, minHeight, t, mobile }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.max(minHeight, el.scrollHeight) + "px";
+  }, [value, minHeight, mobile]);
+  return (
+    <textarea ref={ref} value={value} onChange={onChange} onFocus={onFocus} placeholder={placeholder}
+      style={{ ...mkInp(t, mobile), minHeight, resize:"none", overflow:"hidden" }} />
+  );
+}
+
+function ArticleLoader({ onLoad, t, mobile, isZena }) {
+  const accent  = isZena ? ZENA : UI;
+  const hoverBg = isZena ? "rgba(123,63,175,0.12)" : t.advActiveBg;
+  const hint    = isZena ? "https://zena.aktualne.cz/…" : "https://zpravy.aktualne.cz/…";
+  const [url, setUrl]         = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg]         = useState(null); // { type:"err"|"ok", text }
+  const [feedOpen, setFeedOpen]       = useState(false);
+  const [feedLoading, setFeedLoading] = useState(false); // úvodní načtení (spinner přes celý seznam)
+  const [feedMore, setFeedMore]       = useState(false); // probíhá "Načíst další"
+  const [feedItems, setFeedItems]     = useState([]);
+  const [feedErr, setFeedErr]         = useState(null);
+  const [feedPage, setFeedPage]       = useState(0);
+  const [feedHasMore, setFeedHasMore] = useState(false);
+  const [hoveredIdx, setHoveredIdx]   = useState(-1);
+
+  const run = async (v) => {
+    const target = (v != null ? v : url).trim();
+    if (!target || loading) return;
+    setUrl(target);
+    setLoading(true); setMsg(null);
+    const r = await onLoad(target);
+    setLoading(false);
+    if (!r.ok) setMsg({ type:"err", text: r.error || "Načtení selhalo." });
+    else setMsg({ type:"ok", text: r.noImage ? "Načteno (článek bez hlavní fotky)." : "Článek načten." });
+  };
+
+  const fetchFeedPage = async (page, append) => {
+    try {
+      const resp = await fetch(`/api/fetch-feed?page=${page}${isZena ? "&source=zena" : ""}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { setFeedErr(data.error || `Chyba ${resp.status}.`); return; }
+      setFeedErr(null);
+      setFeedItems(prev => append ? [...prev, ...(data.items || [])] : (data.items || []));
+      setFeedPage(page);
+      setFeedHasMore(!!data.hasMore);
+    } catch {
+      setFeedErr("Feed se nepodařilo načíst.");
+    }
+  };
+
+  const toggleFeed = async () => {
+    const next = !feedOpen;
+    setFeedOpen(next);
+    if (next && feedItems.length === 0 && !feedLoading) {
+      setFeedLoading(true);
+      await fetchFeedPage(1, false);
+      setFeedLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (feedMore) return;
+    setFeedMore(true);
+    await fetchFeedPage(feedPage + 1, true);
+    setFeedMore(false);
+  };
+
+  const pick = (link) => { setFeedOpen(false); setMsg(null); run(link); };
+  const selectInput = e => { const el = e.target; setTimeout(() => el.select(), 0); };
+
+  // Článek je "aktualizovaný", pokud má starší čas vydání než kterýkoli článek pod ním
+  // (feed je řazen podle času aktualizace → taková inverze znamená posun nahoru kvůli update).
+  const updatedFlags = (() => {
+    const flags = new Array(feedItems.length).fill(false);
+    let maxBelow = -Infinity;
+    for (let i = feedItems.length - 1; i >= 0; i--) {
+      const ts = feedItems[i].ts || 0;
+      if (ts < maxBelow) flags[i] = true;
+      if (ts > maxBelow) maxBelow = ts;
+    }
+    return flags;
+  })();
+
+  return (
+    <div style={mkCard(t)}>
+      <input type="url" value={url} onChange={e => setUrl(e.target.value)}
+        onFocus={selectInput}
+        onKeyDown={e => { if (e.key === "Enter") run(); }}
+        placeholder={hint}
+        style={mkInp(t, mobile)} />
+      <button onClick={() => run()} disabled={loading}
+        style={{ ...mkBtn(true, accent, t), width:"100%", marginTop:6, padding:"8px 0", opacity: loading ? 0.6 : 1, cursor: loading ? "default" : "pointer" }}>
+        {loading ? "Načítám…" : "Načíst článek"}
+      </button>
+      {msg && <div style={{ fontSize:11, color: msg.type === "err" ? "#d9534f" : t.textMuted, marginTop:6, lineHeight:1.4 }}>{msg.text}</div>}
+
+      <button onClick={toggleFeed}
+        style={{ background:"none", border:"none", color:accent, cursor:"pointer", fontSize:11, fontWeight:600, padding:0, marginTop:8, display:"flex", alignItems:"center", gap:5 }}>
+        <span style={{ fontSize:9, display:"inline-block", transform: feedOpen ? "rotate(90deg)" : "none", transition:"transform .15s" }}>▶</span>
+        Nejnovější články
+      </button>
+      {feedOpen && (
+        <div style={{ marginTop:6, maxHeight:300, overflowY:"auto", border:`1px solid ${t.borderLight}`, borderRadius:6 }}>
+          {feedLoading && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Načítám feed…</div>}
+          {feedErr && <div style={{ fontSize:11, color:"#d9534f", padding:"8px 10px" }}>{feedErr}</div>}
+          {!feedLoading && !feedErr && feedItems.map((it, i) => (
+            <button key={i} onClick={() => pick(it.link)}
+              onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
+              style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? hoverBg : "transparent", color: hoveredIdx === i ? accent : t.textPrimary }}>
+              {it.time && (
+                <span style={{ display:"inline-flex", alignItems:"center", fontWeight:700, color: hoveredIdx === i ? accent : t.textMuted, marginRight:6, whiteSpace:"nowrap" }}>
+                  {it.time}
+                  {updatedFlags[i] && <span title="Aktualizováno" style={{ width:6, height:6, borderRadius:"50%", background:"#E8821E", marginLeft:4, flexShrink:0 }} />}
+                </span>
+              )}
+              {it.title}
+            </button>
+          ))}
+          {!feedLoading && !feedErr && feedItems.length === 0 && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Žádné články.</div>}
+          {!feedLoading && !feedErr && feedHasMore && (
+            <button onClick={loadMore} disabled={feedMore}
+              style={{ display:"block", width:"100%", textAlign:"center", border:"none", borderTop:`1px solid ${t.borderLight}`, background:"transparent", color:accent, cursor: feedMore ? "default" : "pointer", fontSize:11, fontWeight:600, padding:"9px 10px", opacity: feedMore ? 0.6 : 1 }}>
+              {feedMore ? "Načítám…" : "Načíst další"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, selectAll, t, mobile }) {
   const set = (key, val) => dispatch({ type:"SET", key, value:val });
   const B   = active => mkBtn(active, UI, t);
+  const accent = st.bgMode === "templateZena" ? ZENA : UI;
   const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image") || st.bgMode === "templateZena";
   return (
     <>
+      <ArticleLoader key={st.bgMode === "templateZena" ? "zena" : "default"} onLoad={onLoadArticle} t={t} mobile={mobile} isZena={st.bgMode === "templateZena"} />
       <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
-          <button key={f.id} onClick={() => { set("fmt", f); set("cropRect", null); }} style={{ ...B(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
+          <button key={f.id} onClick={() => { set("fmt", f); set("cropRect", null); }} style={{ ...mkBtn(st.fmt.id===f.id, accent, t), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
             <span style={{ fontSize:11 }}>{f.label}</span>
             <span style={{ fontSize:10, opacity:0.7 }}>{f.sub}</span>
           </button>
@@ -518,12 +719,16 @@ function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobil
         </>
       )}
       <label style={mkLbl(t)}>Titulek</label>
-      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...mkInp(t, mobile), height:44, resize:"none", overflow:"hidden" }} />
-      <label style={mkLbl(t)}>Perex</label>
-      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...mkInp(t, mobile), height:52, resize:"none", overflow:"hidden" }} />
+      <AutoTextarea value={st.headline} onChange={e => set("headline", e.target.value)} onFocus={selectAll} minHeight={44} t={t} mobile={mobile} />
+      <label style={{ ...mkLbl(t), display:"flex", alignItems:"center", gap:6 }}>
+        <input type="checkbox" checked={st.showPerex} onChange={e => set("showPerex", e.target.checked)} style={{ margin:0, cursor:"pointer" }} />
+        <span>Perex</span>
+        <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:t.textMuted }}>{st.showPerex ? "(zobrazit)" : "(skryto)"}</span>
+      </label>
+      <AutoTextarea value={st.subtext} onChange={e => set("subtext", e.target.value)} onFocus={selectAll} placeholder="Volitelný perex…" minHeight={52} t={t} mobile={mobile} />
       {isPhotoMode && (
         <>
-          <label style={mkLbl(t)}>Credit fotografa</label>
+          <label style={mkLbl(t)}>Kredit fotografa</label>
           <input type="text" value={st.photoCredit} onChange={e => set("photoCredit", e.target.value)} placeholder="Jméno / agentura…" style={mkInp(t, mobile)} />
         </>
       )}
@@ -591,12 +796,12 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, mobile, t }) {
+function Actions({ fmt, onReset, onExport, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
       <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
-      <button onClick={onExport} style={{ ...mkBtn(true,  UI, t), width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
+      <button onClick={onExport} style={{ ...mkBtn(true,  accent, t), width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
       <div style={{ fontSize:10, color:t.textFaint, textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
     </div>
   );
@@ -750,7 +955,7 @@ export default function App() {
 
   const buildOpts = useCallback((overrides = {}) => ({
     bgMode: effectiveBgMode, bgColor: st.bgColor, bgImage: imgRef.current,
-    overlayOpacity: st.overlayOpacity, headline: st.headline, subtext: st.subtext,
+    overlayOpacity: st.overlayOpacity, headline: st.headline, subtext: st.showPerex ? st.subtext : "",
     supertitle: st.supertitle, textColor: st.textColor, fontFamily: st.fontFamily,
     fontScale: st.fontScale, textAlign: st.textAlign, textPos: st.textPos,
     logoVariant: st.logoVariant, richVariant: st.richVariant,
@@ -825,6 +1030,44 @@ export default function App() {
     reader.readAsDataURL(file);
   }, [st.fmt, buildOpts, previewMax]);
 
+  const loadFromArticle = useCallback(async (rawUrl) => {
+    let target = rawUrl.trim();
+    if (!/^https?:\/\//i.test(target)) target = "https://" + target;
+    try {
+      const resp = await fetch(`/api/fetch-og?url=${encodeURIComponent(target)}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) return { ok:false, error: data.error || `Chyba ${resp.status}.` };
+
+      if (data.title) dispatch({ type:"SET", key:"headline", value: data.title });
+      if (data.perex) dispatch({ type:"SET", key:"subtext",  value: data.perex });
+      dispatch({ type:"SET", key:"photoCredit", value: data.credit || "" });
+
+      const photoMode = st.bgMode === "template3" || st.bgMode === "templateZena" ||
+                        (st.bgMode === "custom" && st.customSub === "image");
+
+      if (data.imageDataUrl) {
+        await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            imgRef.current = img;
+            dispatch({ type:"SET", key:"cropRect", value:null });
+            if (!photoMode) {
+              dispatch({ type:"SET", key:"bgMode",    value:"custom" });
+              dispatch({ type:"SET", key:"customSub", value:"image" });
+              dispatch({ type:"SET", key:"logoVariant", value:"blue" });
+            }
+            resolve();
+          };
+          img.onerror = () => reject(new Error("img"));
+          img.src = data.imageDataUrl;
+        }).catch(() => {});
+      }
+      return { ok:true, noImage: !data.imageDataUrl };
+    } catch {
+      return { ok:false, error:"Síťová chyba. Ověř, že connect-src v vercel.json je 'self'." };
+    }
+  }, [dispatch, st.bgMode, st.customSub]);
+
   const getCropDimensions = () => {
     const { w, h } = st.fmt;
     if (st.bgMode === "template3") return { cropW: w, cropH: Math.round(h * 0.55) };
@@ -853,9 +1096,9 @@ export default function App() {
   };
 
   const hasImage      = !!imgRef.current;
-  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll, t, mobile: isMobile };
+  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t, accent: st.bgMode === "templateZena" ? ZENA : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
