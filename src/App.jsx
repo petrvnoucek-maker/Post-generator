@@ -25,7 +25,8 @@ const DEFAULTS = {
   textColor: "#ffffff", textAlign: "left", textPos: "bottom",
   fontFamily: "Inter", fontScale: 1.0,
   bgMode: "template2", logoVariant: "blue",
-  customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.45,
+  customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.40,
+  showPerex: false,
   richVariant: "light", richPhotoPos: "top", richPanelColor: "#1B69BF",
   zenaOverlay: "dark", zenaOverlayOpacity: 0.85,
   fmt: FORMATS[0], advancedOpen: false, cropRect: null,
@@ -228,7 +229,12 @@ function drawTemplateStandard(ctx, w, h, opts) {
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   } else if (bgMode === "image" && bgImage) {
     drawCropped(ctx, bgImage, 0, 0, w, h, cropRect);
-    ctx.fillStyle = `rgba(0,0,0,${overlayOpacity})`; ctx.fillRect(0, 0, w, h);
+    const gy = h * 0.28;
+    const og = ctx.createLinearGradient(0, gy, 0, h);
+    og.addColorStop(0,    "rgba(0,0,0,0)");
+    og.addColorStop(0.38, `rgba(0,0,0,${(overlayOpacity * 0.8).toFixed(2)})`);
+    og.addColorStop(1,    `rgba(0,0,0,${overlayOpacity.toFixed(2)})`);
+    ctx.fillStyle = og; ctx.fillRect(0, gy, w, h - gy);
   } else if (bgMode === "image") {
     drawPhotoPlaceholder(ctx, 0, 0, w, h, 0.33);
   } else {
@@ -500,26 +506,73 @@ function ArticleLoader({ onLoad, t, mobile }) {
   const [url, setUrl]         = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg]         = useState(null); // { type:"err"|"ok", text }
-  const go = async () => {
-    const v = url.trim();
-    if (!v || loading) return;
+  const [feedOpen, setFeedOpen]       = useState(false);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedItems, setFeedItems]     = useState([]);
+  const [feedErr, setFeedErr]         = useState(null);
+
+  const run = async (v) => {
+    const target = (v != null ? v : url).trim();
+    if (!target || loading) return;
+    setUrl(target);
     setLoading(true); setMsg(null);
-    const r = await onLoad(v);
+    const r = await onLoad(target);
     setLoading(false);
     if (!r.ok) setMsg({ type:"err", text: r.error || "Načtení selhalo." });
     else setMsg({ type:"ok", text: r.noImage ? "Načteno (článek bez hlavní fotky)." : "Článek načten." });
   };
+
+  const toggleFeed = async () => {
+    const next = !feedOpen;
+    setFeedOpen(next);
+    if (next && feedItems.length === 0 && !feedLoading) {
+      setFeedLoading(true); setFeedErr(null);
+      try {
+        const resp = await fetch("/api/fetch-feed");
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) setFeedErr(data.error || `Chyba ${resp.status}.`);
+        else setFeedItems(data.items || []);
+      } catch {
+        setFeedErr("Feed se nepodařilo načíst.");
+      }
+      setFeedLoading(false);
+    }
+  };
+
+  const pick = (link) => { setFeedOpen(false); setMsg(null); run(link); };
+  const selectInput = e => { const el = e.target; setTimeout(() => el.select(), 0); };
+
   return (
     <div style={mkCard(t)}>
       <input type="url" value={url} onChange={e => setUrl(e.target.value)}
-        onKeyDown={e => { if (e.key === "Enter") go(); }}
+        onFocus={selectInput}
+        onKeyDown={e => { if (e.key === "Enter") run(); }}
         placeholder="https://zpravy.aktualne.cz/…"
         style={mkInp(t, mobile)} />
-      <button onClick={go} disabled={loading}
+      <button onClick={() => run()} disabled={loading}
         style={{ ...mkBtn(true, UI, t), width:"100%", marginTop:6, padding:"8px 0", opacity: loading ? 0.6 : 1, cursor: loading ? "default" : "pointer" }}>
         {loading ? "Načítám…" : "Načíst článek"}
       </button>
       {msg && <div style={{ fontSize:11, color: msg.type === "err" ? "#d9534f" : t.textMuted, marginTop:6, lineHeight:1.4 }}>{msg.text}</div>}
+
+      <button onClick={toggleFeed}
+        style={{ background:"none", border:"none", color:UI, cursor:"pointer", fontSize:11, fontWeight:600, padding:0, marginTop:8, display:"flex", alignItems:"center", gap:5 }}>
+        <span style={{ fontSize:9, display:"inline-block", transform: feedOpen ? "rotate(90deg)" : "none", transition:"transform .15s" }}>▶</span>
+        Nejnovější články
+      </button>
+      {feedOpen && (
+        <div style={{ marginTop:6, maxHeight:280, overflowY:"auto", border:`1px solid ${t.borderLight}`, borderRadius:6 }}>
+          {feedLoading && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Načítám feed…</div>}
+          {feedErr && <div style={{ fontSize:11, color:"#d9534f", padding:"8px 10px" }}>{feedErr}</div>}
+          {!feedLoading && !feedErr && feedItems.map((it, i) => (
+            <button key={i} onClick={() => pick(it.link)}
+              style={{ display:"block", width:"100%", textAlign:"left", background:"none", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", color:t.textPrimary, cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px" }}>
+              {it.title}
+            </button>
+          ))}
+          {!feedLoading && !feedErr && feedItems.length === 0 && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Žádné články.</div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -548,7 +601,11 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
       )}
       <label style={mkLbl(t)}>Titulek</label>
       <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...mkInp(t, mobile), height:44, resize:"none", overflow:"hidden" }} />
-      <label style={mkLbl(t)}>Perex</label>
+      <label style={{ ...mkLbl(t), display:"flex", alignItems:"center", gap:6 }}>
+        <input type="checkbox" checked={st.showPerex} onChange={e => set("showPerex", e.target.checked)} style={{ margin:0, cursor:"pointer" }} />
+        <span>Perex</span>
+        <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:t.textMuted }}>{st.showPerex ? "(zobrazit)" : "(skryto)"}</span>
+      </label>
       <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...mkInp(t, mobile), height:52, resize:"none", overflow:"hidden" }} />
       {isPhotoMode && (
         <>
@@ -779,7 +836,7 @@ export default function App() {
 
   const buildOpts = useCallback((overrides = {}) => ({
     bgMode: effectiveBgMode, bgColor: st.bgColor, bgImage: imgRef.current,
-    overlayOpacity: st.overlayOpacity, headline: st.headline, subtext: st.subtext,
+    overlayOpacity: st.overlayOpacity, headline: st.headline, subtext: st.showPerex ? st.subtext : "",
     supertitle: st.supertitle, textColor: st.textColor, fontFamily: st.fontFamily,
     fontScale: st.fontScale, textAlign: st.textAlign, textPos: st.textPos,
     logoVariant: st.logoVariant, richVariant: st.richVariant,
