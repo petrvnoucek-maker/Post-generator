@@ -80,6 +80,15 @@ function wrapLines(fontStr, text, maxW) {
   if (line.trim()) lines.push(line.trim());
   return lines;
 }
+// Vrátí největší zmenšovací faktor (≤1, krok `step`) tak, aby measureFn(fit) ≤ availH.
+function fitDownscale(measureFn, availH, minFit = 0.55, step = 0.04) {
+  let fit = 1;
+  while (fit > minFit) {
+    if (measureFn(fit) <= availH) break;
+    fit -= step;
+  }
+  return Math.max(minFit, fit);
+}
 
 // ── Draw utilities ────────────────────────────────────────────────────────────
 function drawLogoOnCanvas(ctx, cx, cy, r, variant) {
@@ -182,18 +191,29 @@ function drawTemplateRich(ctx, w, h, opts) {
   else drawPhotoPlaceholder(ctx, 0, photoY, w, photoH, 0.5);
   const textCol   = richVariant === "light" ? "#111111" : "#ffffff";
   const accentCol = richVariant === "light" ? UI : richVariant === "color" ? "#ffffff" : "#6AABF0";
-  const stSize = Math.round(w * 0.034 * fontScale);
+  const stSize0 = Math.round(w * 0.034 * fontScale);
   const hasSuper = !!(supertitle && supertitle.trim());
-  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, maxW);
-  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, maxW) : [];
-  const blockH = (hasSuper ? stSize * 1.7 : 0) + hLines.length * hs * 1.28 + (sLines.length ? ss * 0.9 + sLines.length * ss * 1.4 : 0);
+  const availH = panelH * 0.80;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs*f, ssF = ss*f, stF = stSize0*f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, maxW);
+      return (hasSuper ? stF*1.7 : 0) + hl.length*hsF*1.28 + ssF*0.9 + sl.length*ssF*1.4;
+    }, availH);
+  }
+  const hsF = hs*fit, ssF = ss*fit, stSize = stSize0*fit;
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, maxW) : [];
+  const blockH = (hasSuper ? stSize * 1.7 : 0) + hLines.length * hsF * 1.28 + (sLines.length ? ssF * 0.9 + sLines.length * ssF * 1.4 : 0);
   let ty = panelY + Math.max(panelH * 0.13, (panelH - blockH) / 2);
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   if (hasSuper) { ctx.font = `bold ${stSize}px ${ff}`; ctx.fillStyle = accentCol; ctx.fillText(supertitle, pad, ty + stSize * 0.88); ty += stSize * 1.7; }
-  ctx.font = `bold ${hs}px ${ff}`; ctx.fillStyle = textCol;
-  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * hs * 1.28 + hs * 0.88));
-  ty += hLines.length * hs * 1.28;
-  if (sLines.length) { ty += ss * 0.9; ctx.font = `${ss}px ${ff}`; ctx.globalAlpha = 0.72; sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * ss * 1.4 + ss * 0.88)); ctx.globalAlpha = 1; }
+  ctx.font = `bold ${hsF}px ${ff}`; ctx.fillStyle = textCol;
+  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * hsF * 1.28 + hsF * 0.88));
+  ty += hLines.length * hsF * 1.28;
+  if (sLines.length) { ty += ssF * 0.9; ctx.font = `${ssF}px ${ff}`; ctx.globalAlpha = 0.72; sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * ssF * 1.4 + ssF * 0.88)); ctx.globalAlpha = 1; }
   const creditH = richPhotoPos === "top" ? photoH : h;
   drawPhotoCredit(ctx, w, creditH, photoCredit, "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
@@ -204,16 +224,28 @@ function drawTemplateBlack(ctx, w, h, opts) {
   const hs = Math.round(w * 0.075 * fontScale), ss = Math.round(w * 0.038 * fontScale);
   ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
   const bx = w*0.07, bw2 = Math.max(4, w*0.007), textX = bx+bw2+w*0.04, tMaxW = w*0.76;
-  const lh1 = hs*1.28, lh2 = ss*1.4;
-  const yBase = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
-  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, tMaxW);
-  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, tMaxW) : [];
-  const totalH = hLines.length*lh1 + (sLines.length ? ss*0.8+sLines.length*lh2 : 0);
-  ctx.fillStyle = BAR; ctx.fillRect(bx, yBase-hs*0.12, bw2, totalH+hs*0.15);
-  ctx.font = `bold ${hs}px ${ff}`; ctx.fillStyle = textColor;
+  const topLimit = h*0.08, bottomLimit = h*0.93, availH = bottomLimit - topLimit;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs*f, ssF = ss*f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, tMaxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, tMaxW);
+      return hl.length*hsF*1.28 + ssF*0.8 + sl.length*ssF*1.4;
+    }, availH);
+  }
+  const hsF = hs*fit, ssF = ss*fit;
+  const lh1 = hsF*1.28, lh2 = ssF*1.4;
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, tMaxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, tMaxW) : [];
+  const totalH = hLines.length*lh1 + (sLines.length ? ssF*0.8+sLines.length*lh2 : 0);
+  const desiredY = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
+  const yBase = Math.max(topLimit, Math.min(desiredY, bottomLimit - totalH));
+  ctx.fillStyle = BAR; ctx.fillRect(bx, yBase-hsF*0.12, bw2, totalH+hsF*0.15);
+  ctx.font = `bold ${hsF}px ${ff}`; ctx.fillStyle = textColor;
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  hLines.forEach((l, i) => ctx.fillText(l, textX, yBase+i*lh1+hs*0.88));
-  if (sLines.length) { ctx.font = `${ss}px ${ff}`; ctx.globalAlpha = 0.78; const sy2 = yBase+hLines.length*lh1+ss*1.1; sLines.forEach((l, i) => ctx.fillText(l, textX, sy2+i*lh2)); ctx.globalAlpha = 1; }
+  hLines.forEach((l, i) => ctx.fillText(l, textX, yBase+i*lh1+hsF*0.88));
+  if (sLines.length) { ctx.font = `${ssF}px ${ff}`; ctx.globalAlpha = 0.78; const sy2 = yBase+hLines.length*lh1+ssF*1.1; sLines.forEach((l, i) => ctx.fillText(l, textX, sy2+i*lh2)); ctx.globalAlpha = 1; }
   drawLogo(ctx, w, h, logoVariant);
 }
 function drawTemplateStandard(ctx, w, h, opts) {
@@ -240,16 +272,30 @@ function drawTemplateStandard(ctx, w, h, opts) {
   } else {
     ctx.fillStyle = bgColor; ctx.fillRect(0, 0, w, h);
   }
-  const yBase = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
+  const topLimit = h*0.08, bottomLimit = h*0.93, availH = bottomLimit - topLimit;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs*f, ssF = ss*f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, maxW);
+      return hl.length*hsF*1.28 + ssF*0.7 + sl.length*ssF*1.4;
+    }, availH);
+  }
+  const hsF = hs*fit, ssF = ss*fit;
   ctx.fillStyle = textColor; ctx.textBaseline = "alphabetic";
-  const drawBlock = (text, size, bold, y) => {
-    const fStr = `${bold ? "bold " : ""}${size}px ${ff}`; ctx.font = fStr;
-    const lines = wrapLines(fStr, text, maxW); const lh = size * (bold ? 1.28 : 1.4);
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, maxW) : [];
+  const h1h = hLines.length * hsF * 1.28;
+  const totalH = h1h + (sLines.length ? ssF*0.7 + sLines.length*ssF*1.4 : 0);
+  const desiredY = textPos === "top" ? h*0.12 : textPos === "center" ? h*0.38 : h*0.55;
+  const yBase = Math.max(topLimit, Math.min(desiredY, bottomLimit - totalH));
+  const drawLines = (lines, size, lh, y) => {
     lines.forEach((l, i) => { ctx.textAlign = textAlign; const x = textAlign==="center" ? w/2 : textAlign==="right" ? pad+maxW : pad; ctx.fillText(l, x, y+i*lh+size*0.88); });
-    return lines.length * lh;
   };
-  const h1h = drawBlock(headline, hs, true, yBase);
-  ctx.globalAlpha = 0.82; drawBlock(subtext, ss, false, yBase+h1h+ss*0.7); ctx.globalAlpha = 1;
+  ctx.font = `bold ${hsF}px ${ff}`;
+  drawLines(hLines, hsF, hsF*1.28, yBase);
+  if (sLines.length) { ctx.font = `${ssF}px ${ff}`; ctx.globalAlpha = 0.82; drawLines(sLines, ssF, ssF*1.4, yBase + h1h + ssF*0.7); ctx.globalAlpha = 1; }
   if (bgMode === "image") drawPhotoCredit(ctx, w, h, photoCredit, opts.creditColor || "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
 }
@@ -284,31 +330,43 @@ function drawTemplateZena(ctx, w, h, opts) {
   ctx.fillStyle = g;
   ctx.fillRect(0, gradY, w, h - gradY);
 
-  // 3. Text blok – bottom-up
-  const lh1 = hs * 1.28;
-  const lh2 = ss * 1.4;
-  const hLines = wrapLines(`bold ${hs}px ${ff}`, headline, maxW);
-  const sLines = subtext ? wrapLines(`${ss}px ${ff}`, subtext, maxW) : [];
-  const blockH = hLines.length * lh1 + (sLines.length ? ss * 0.85 + sLines.length * lh2 : 0);
-  const botPad = h * 0.062;
+  // 3. Text blok – bottom-up, s auto-fitem
+  const botPad   = h * 0.062;
+  const topLimit = h * 0.20;                 // spodní hrana loga + rezerva
+  const availH   = (h - botPad) - topLimit;
+  let fit = 1;
+  if (subtext) {
+    fit = fitDownscale((f) => {
+      const hsF = hs * f, ssF = ss * f;
+      const hl = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+      const sl = wrapLines(`${ssF}px ${ff}`, subtext, maxW);
+      return hl.length * hsF * 1.28 + ssF * 0.85 + sl.length * ssF * 1.4;
+    }, availH);
+  }
+  const hsF = hs * fit, ssF = ss * fit;
+  const lh1 = hsF * 1.28;
+  const lh2 = ssF * 1.4;
+  const hLines = wrapLines(`bold ${hsF}px ${ff}`, headline, maxW);
+  const sLines = subtext ? wrapLines(`${ssF}px ${ff}`, subtext, maxW) : [];
+  const blockH = hLines.length * lh1 + (sLines.length ? ssF * 0.85 + sLines.length * lh2 : 0);
   let ty = h - botPad - blockH;
 
   ctx.textAlign    = "left";
   ctx.textBaseline = "alphabetic";
 
   // Titulek
-  ctx.font      = `bold ${hs}px ${ff}`;
+  ctx.font      = `bold ${hsF}px ${ff}`;
   ctx.fillStyle = "#ffffff";
   ctx.globalAlpha = 1;
-  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh1 + hs * 0.88));
+  hLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh1 + hsF * 0.88));
   ty += hLines.length * lh1;
 
   // Perex
   if (sLines.length) {
-    ty += ss * 0.85;
-    ctx.font = `${ss}px ${ff}`;
+    ty += ssF * 0.85;
+    ctx.font = `${ssF}px ${ff}`;
     ctx.globalAlpha = 0.85;
-    sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh2 + ss * 0.88));
+    sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * lh2 + ssF * 0.88));
     ctx.globalAlpha = 1;
   }
 
@@ -586,6 +644,7 @@ function ArticleLoader({ onLoad, t, mobile }) {
             <button key={i} onClick={() => pick(it.link)}
               onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
               style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? t.advActiveBg : "transparent", color: hoveredIdx === i ? UI : t.textPrimary }}>
+              {it.time && <span style={{ fontWeight:700, color: hoveredIdx === i ? UI : t.textMuted, marginRight:6 }}>{it.time}</span>}
               {it.title}
             </button>
           ))}
