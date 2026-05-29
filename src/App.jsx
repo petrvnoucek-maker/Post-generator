@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useReducer } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useReducer } from "react";
 
 const ALLOWED_MIME        = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_FILE_BYTES      = 20 * 1024 * 1024;
@@ -560,6 +560,19 @@ function ZenaControls({ st, dispatch, onImageUpload, t }) {
   );
 }
 
+function AutoTextarea({ value, onChange, onFocus, placeholder, minHeight, t, mobile }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.max(minHeight, el.scrollHeight) + "px";
+  }, [value, minHeight, mobile]);
+  return (
+    <textarea ref={ref} value={value} onChange={onChange} onFocus={onFocus} placeholder={placeholder}
+      style={{ ...mkInp(t, mobile), minHeight, resize:"none", overflow:"hidden" }} />
+  );
+}
+
 function ArticleLoader({ onLoad, t, mobile }) {
   const [url, setUrl]         = useState("");
   const [loading, setLoading] = useState(false);
@@ -658,9 +671,9 @@ function ArticleLoader({ onLoad, t, mobile }) {
               onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
               style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? t.advActiveBg : "transparent", color: hoveredIdx === i ? UI : t.textPrimary }}>
               {it.time && (
-                <span style={{ fontWeight:700, color: hoveredIdx === i ? UI : t.textMuted, marginRight:6, whiteSpace:"nowrap" }}>
+                <span style={{ display:"inline-flex", alignItems:"center", fontWeight:700, color: hoveredIdx === i ? UI : t.textMuted, marginRight:6, whiteSpace:"nowrap" }}>
                   {it.time}
-                  {updatedFlags[i] && <span title="Aktualizováno" style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:"#E8821E", marginLeft:4, verticalAlign:"middle" }} />}
+                  {updatedFlags[i] && <span title="Aktualizováno" style={{ width:6, height:6, borderRadius:"50%", background:"#E8821E", marginLeft:4, flexShrink:0 }} />}
                 </span>
               )}
               {it.title}
@@ -702,13 +715,13 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
         </>
       )}
       <label style={mkLbl(t)}>Titulek</label>
-      <textarea value={st.headline} onChange={e => { set("headline", e.target.value); autoResize(e); }} onFocus={selectAll} style={{ ...mkInp(t, mobile), height:44, resize:"none", overflow:"hidden" }} />
+      <AutoTextarea value={st.headline} onChange={e => set("headline", e.target.value)} onFocus={selectAll} minHeight={44} t={t} mobile={mobile} />
       <label style={{ ...mkLbl(t), display:"flex", alignItems:"center", gap:6 }}>
         <input type="checkbox" checked={st.showPerex} onChange={e => set("showPerex", e.target.checked)} style={{ margin:0, cursor:"pointer" }} />
         <span>Perex</span>
         <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:t.textMuted }}>{st.showPerex ? "(zobrazit)" : "(skryto)"}</span>
       </label>
-      <textarea value={st.subtext} onChange={e => { set("subtext", e.target.value); autoResize(e); }} onFocus={selectAll} placeholder="Volitelný perex…" style={{ ...mkInp(t, mobile), height:52, resize:"none", overflow:"hidden" }} />
+      <AutoTextarea value={st.subtext} onChange={e => set("subtext", e.target.value)} onFocus={selectAll} placeholder="Volitelný perex…" minHeight={52} t={t} mobile={mobile} />
       {isPhotoMode && (
         <>
           <label style={mkLbl(t)}>Credit fotografa</label>
