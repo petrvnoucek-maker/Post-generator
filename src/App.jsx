@@ -618,6 +618,19 @@ function ArticleLoader({ onLoad, t, mobile }) {
   const pick = (link) => { setFeedOpen(false); setMsg(null); run(link); };
   const selectInput = e => { const el = e.target; setTimeout(() => el.select(), 0); };
 
+  // Článek je "aktualizovaný", pokud má starší čas vydání než kterýkoli článek pod ním
+  // (feed je řazen podle času aktualizace → taková inverze znamená posun nahoru kvůli update).
+  const updatedFlags = (() => {
+    const flags = new Array(feedItems.length).fill(false);
+    let maxBelow = -Infinity;
+    for (let i = feedItems.length - 1; i >= 0; i--) {
+      const ts = feedItems[i].ts || 0;
+      if (ts < maxBelow) flags[i] = true;
+      if (ts > maxBelow) maxBelow = ts;
+    }
+    return flags;
+  })();
+
   return (
     <div style={mkCard(t)}>
       <input type="url" value={url} onChange={e => setUrl(e.target.value)}
@@ -644,7 +657,12 @@ function ArticleLoader({ onLoad, t, mobile }) {
             <button key={i} onClick={() => pick(it.link)}
               onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
               style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? t.advActiveBg : "transparent", color: hoveredIdx === i ? UI : t.textPrimary }}>
-              {it.time && <span style={{ fontWeight:700, color: hoveredIdx === i ? UI : t.textMuted, marginRight:6 }}>{it.time}</span>}
+              {it.time && (
+                <span style={{ fontWeight:700, color: hoveredIdx === i ? UI : t.textMuted, marginRight:6, whiteSpace:"nowrap" }}>
+                  {it.time}
+                  {updatedFlags[i] && <span title="Aktualizováno" style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:"#E8821E", marginLeft:4, verticalAlign:"middle" }} />}
+                </span>
+              )}
               {it.title}
             </button>
           ))}
