@@ -496,12 +496,41 @@ function ZenaControls({ st, dispatch, onImageUpload, t }) {
   );
 }
 
-function Controls({ st, dispatch, onImageUpload, autoResize, selectAll, t, mobile }) {
+function ArticleLoader({ onLoad, t, mobile }) {
+  const [url, setUrl]         = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg]         = useState(null); // { type:"err"|"ok", text }
+  const go = async () => {
+    const v = url.trim();
+    if (!v || loading) return;
+    setLoading(true); setMsg(null);
+    const r = await onLoad(v);
+    setLoading(false);
+    if (!r.ok) setMsg({ type:"err", text: r.error || "Načtení selhalo." });
+    else setMsg({ type:"ok", text: r.noImage ? "Načteno (článek bez hlavní fotky)." : "Článek načten." });
+  };
+  return (
+    <div style={mkCard(t)}>
+      <input type="url" value={url} onChange={e => setUrl(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter") go(); }}
+        placeholder="https://zpravy.aktualne.cz/…"
+        style={mkInp(t, mobile)} />
+      <button onClick={go} disabled={loading}
+        style={{ ...mkBtn(true, UI, t), width:"100%", marginTop:6, padding:"8px 0", opacity: loading ? 0.6 : 1, cursor: loading ? "default" : "pointer" }}>
+        {loading ? "Načítám…" : "Načíst článek"}
+      </button>
+      {msg && <div style={{ fontSize:11, color: msg.type === "err" ? "#d9534f" : t.textMuted, marginTop:6, lineHeight:1.4 }}>{msg.text}</div>}
+    </div>
+  );
+}
+
+function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, selectAll, t, mobile }) {
   const set = (key, val) => dispatch({ type:"SET", key, value:val });
   const B   = active => mkBtn(active, UI, t);
   const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image") || st.bgMode === "templateZena";
   return (
     <>
+      <ArticleLoader onLoad={onLoadArticle} t={t} mobile={mobile} />
       <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
@@ -825,6 +854,44 @@ export default function App() {
     reader.readAsDataURL(file);
   }, [st.fmt, buildOpts, previewMax]);
 
+  const loadFromArticle = useCallback(async (rawUrl) => {
+    let target = rawUrl.trim();
+    if (!/^https?:\/\//i.test(target)) target = "https://" + target;
+    try {
+      const resp = await fetch(`/api/fetch-og?url=${encodeURIComponent(target)}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) return { ok:false, error: data.error || `Chyba ${resp.status}.` };
+
+      if (data.title) dispatch({ type:"SET", key:"headline", value: data.title });
+      if (data.perex) dispatch({ type:"SET", key:"subtext",  value: data.perex });
+      dispatch({ type:"SET", key:"photoCredit", value: data.credit || "" });
+
+      const photoMode = st.bgMode === "template3" || st.bgMode === "templateZena" ||
+                        (st.bgMode === "custom" && st.customSub === "image");
+
+      if (data.imageDataUrl) {
+        await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            imgRef.current = img;
+            dispatch({ type:"SET", key:"cropRect", value:null });
+            if (!photoMode) {
+              dispatch({ type:"SET", key:"bgMode",    value:"custom" });
+              dispatch({ type:"SET", key:"customSub", value:"image" });
+              dispatch({ type:"SET", key:"logoVariant", value:"blue" });
+            }
+            resolve();
+          };
+          img.onerror = () => reject(new Error("img"));
+          img.src = data.imageDataUrl;
+        }).catch(() => {});
+      }
+      return { ok:true, noImage: !data.imageDataUrl };
+    } catch {
+      return { ok:false, error:"Síťová chyba. Ověř, že connect-src v vercel.json je 'self'." };
+    }
+  }, [dispatch, st.bgMode, st.customSub]);
+
   const getCropDimensions = () => {
     const { w, h } = st.fmt;
     if (st.bgMode === "template3") return { cropW: w, cropH: Math.round(h * 0.55) };
@@ -853,7 +920,7 @@ export default function App() {
   };
 
   const hasImage      = !!imgRef.current;
-  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, autoResize, selectAll, t, mobile: isMobile };
+  const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
   const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t };
 
