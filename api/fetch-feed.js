@@ -47,8 +47,15 @@ export default async function handler(req, res) {
     if (!t || !l) continue;
     const title = decode(t[1]).trim();
     const link  = decode(l[1]).trim();
+    // Čas vydání (HH:MM) – pubDate je už v místním (pražském) čase díky offsetu
+    let time = "";
+    const pd = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+    if (pd) {
+      const tm = pd[1].match(/(\d{2}):(\d{2}):\d{2}/);
+      if (tm) time = `${tm[1]}:${tm[2]}`;
+    }
     try {
-      if (ART_HOST.test(new URL(link).hostname) && title) items.push({ title, link });
+      if (ART_HOST.test(new URL(link).hostname) && title) items.push({ title, link, time });
     } catch { /* přeskoč nevalidní */ }
   }
 
