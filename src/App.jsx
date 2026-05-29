@@ -507,9 +507,13 @@ function ArticleLoader({ onLoad, t, mobile }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg]         = useState(null); // { type:"err"|"ok", text }
   const [feedOpen, setFeedOpen]       = useState(false);
-  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedLoading, setFeedLoading] = useState(false); // úvodní načtení (spinner přes celý seznam)
+  const [feedMore, setFeedMore]       = useState(false); // probíhá "Načíst další"
   const [feedItems, setFeedItems]     = useState([]);
   const [feedErr, setFeedErr]         = useState(null);
+  const [feedPage, setFeedPage]       = useState(0);
+  const [feedHasMore, setFeedHasMore] = useState(false);
+  const [hoveredIdx, setHoveredIdx]   = useState(-1);
 
   const run = async (v) => {
     const target = (v != null ? v : url).trim();
@@ -522,21 +526,35 @@ function ArticleLoader({ onLoad, t, mobile }) {
     else setMsg({ type:"ok", text: r.noImage ? "Načteno (článek bez hlavní fotky)." : "Článek načten." });
   };
 
+  const fetchFeedPage = async (page, append) => {
+    try {
+      const resp = await fetch(`/api/fetch-feed?page=${page}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { setFeedErr(data.error || `Chyba ${resp.status}.`); return; }
+      setFeedErr(null);
+      setFeedItems(prev => append ? [...prev, ...(data.items || [])] : (data.items || []));
+      setFeedPage(page);
+      setFeedHasMore(!!data.hasMore);
+    } catch {
+      setFeedErr("Feed se nepodařilo načíst.");
+    }
+  };
+
   const toggleFeed = async () => {
     const next = !feedOpen;
     setFeedOpen(next);
     if (next && feedItems.length === 0 && !feedLoading) {
-      setFeedLoading(true); setFeedErr(null);
-      try {
-        const resp = await fetch("/api/fetch-feed");
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) setFeedErr(data.error || `Chyba ${resp.status}.`);
-        else setFeedItems(data.items || []);
-      } catch {
-        setFeedErr("Feed se nepodařilo načíst.");
-      }
+      setFeedLoading(true);
+      await fetchFeedPage(1, false);
       setFeedLoading(false);
     }
+  };
+
+  const loadMore = async () => {
+    if (feedMore) return;
+    setFeedMore(true);
+    await fetchFeedPage(feedPage + 1, true);
+    setFeedMore(false);
   };
 
   const pick = (link) => { setFeedOpen(false); setMsg(null); run(link); };
@@ -561,16 +579,23 @@ function ArticleLoader({ onLoad, t, mobile }) {
         Nejnovější články
       </button>
       {feedOpen && (
-        <div style={{ marginTop:6, maxHeight:280, overflowY:"auto", border:`1px solid ${t.borderLight}`, borderRadius:6 }}>
+        <div style={{ marginTop:6, maxHeight:300, overflowY:"auto", border:`1px solid ${t.borderLight}`, borderRadius:6 }}>
           {feedLoading && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Načítám feed…</div>}
           {feedErr && <div style={{ fontSize:11, color:"#d9534f", padding:"8px 10px" }}>{feedErr}</div>}
           {!feedLoading && !feedErr && feedItems.map((it, i) => (
             <button key={i} onClick={() => pick(it.link)}
-              style={{ display:"block", width:"100%", textAlign:"left", background:"none", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", color:t.textPrimary, cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px" }}>
+              onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
+              style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? t.advActiveBg : "transparent", color: hoveredIdx === i ? UI : t.textPrimary }}>
               {it.title}
             </button>
           ))}
           {!feedLoading && !feedErr && feedItems.length === 0 && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Žádné články.</div>}
+          {!feedLoading && !feedErr && feedHasMore && (
+            <button onClick={loadMore} disabled={feedMore}
+              style={{ display:"block", width:"100%", textAlign:"center", border:"none", borderTop:`1px solid ${t.borderLight}`, background:"transparent", color:UI, cursor: feedMore ? "default" : "pointer", fontSize:11, fontWeight:600, padding:"9px 10px", opacity: feedMore ? 0.6 : 1 }}>
+              {feedMore ? "Načítám…" : "Načíst další"}
+            </button>
+          )}
         </div>
       )}
     </div>
