@@ -76,6 +76,11 @@ export default async function handler(req, res) {
       if (d.author && String(d.author).trim()) credit = String(d.author).trim();
     } catch { /* fallthrough */ }
   }
+  // zena.aktualne.cz – jiný header (bez photoswipe): vezmi <img src> z hlavičkového figure
+  if (!imgUrl) {
+    const zh = html.match(/e-web-zena-articles-show-header__image[\s\S]{0,1500}?<img[^>]*\ssrc="([^"]+)"/i);
+    if (zh) imgUrl = zh[1];
+  }
   // fallback na og:image (typicky poutací foto pro sdílení)
   if (!imgUrl) imgUrl = metaContent(html, "property", "og:image") || metaContent(html, "name", "twitter:image");
   // fallback kreditu z textu "Foto: …"
