@@ -48,14 +48,16 @@ export default async function handler(req, res) {
     const title = decode(t[1]).trim();
     const link  = decode(l[1]).trim();
     // Čas vydání (HH:MM) – pubDate je už v místním (pražském) čase díky offsetu
-    let time = "";
+    let time = "", ts = 0;
     const pd = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
     if (pd) {
       const tm = pd[1].match(/(\d{2}):(\d{2}):\d{2}/);
       if (tm) time = `${tm[1]}:${tm[2]}`;
+      const parsed = Date.parse(pd[1].trim());
+      if (Number.isFinite(parsed)) ts = parsed;
     }
     try {
-      if (ART_HOST.test(new URL(link).hostname) && title) items.push({ title, link, time });
+      if (ART_HOST.test(new URL(link).hostname) && title) items.push({ title, link, time, ts });
     } catch { /* přeskoč nevalidní */ }
   }
 
