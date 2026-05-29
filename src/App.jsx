@@ -28,7 +28,7 @@ const DEFAULTS = {
   customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.40,
   showPerex: false,
   richVariant: "light", richPhotoPos: "top", richPanelColor: "#1B69BF",
-  zenaOverlay: "dark", zenaOverlayOpacity: 0.85,
+  zenaOverlay: "light", zenaOverlayOpacity: 0.85,
   fmt: FORMATS[0], advancedOpen: false, cropRect: null,
 };
 
@@ -550,11 +550,11 @@ function ZenaControls({ st, dispatch, onImageUpload, t }) {
       <label style={mkUpload(t)}>📁 Nahrát fotku<input type="file" accept="image/*" onChange={e => onImageUpload(e, false, true)} style={{ display:"none" }} /></label>
       <div style={mkLbl(t)}>Tón překryvu</div>
       <div style={{ display:"flex", gap:6 }}>
-        <button onClick={() => set("zenaOverlay","dark")}  style={{ ...B(st.zenaOverlay==="dark"),  flex:1, fontSize:11 }}>Tmavý</button>
         <button onClick={() => set("zenaOverlay","light")} style={{ ...B(st.zenaOverlay==="light"), flex:1, fontSize:11 }}>Světlý (fialový)</button>
+        <button onClick={() => set("zenaOverlay","dark")}  style={{ ...B(st.zenaOverlay==="dark"),  flex:1, fontSize:11 }}>Tmavý</button>
       </div>
       <div style={mkLbl(t)}>Intenzita překryvu</div>
-      <input type="range" min="0" max="1" step="0.05" value={st.zenaOverlayOpacity} onChange={e => set("zenaOverlayOpacity", parseFloat(e.target.value))} style={{ width:"100%" }} />
+      <input type="range" min="0" max="1" step="0.05" value={st.zenaOverlayOpacity} onChange={e => set("zenaOverlayOpacity", parseFloat(e.target.value))} style={{ width:"100%", accentColor: ZENA }} />
       <span style={{ fontSize:11, color:t.textMuted }}>{Math.round(st.zenaOverlayOpacity * 100)} %</span>
     </div>
   );
@@ -573,7 +573,10 @@ function AutoTextarea({ value, onChange, onFocus, placeholder, minHeight, t, mob
   );
 }
 
-function ArticleLoader({ onLoad, t, mobile }) {
+function ArticleLoader({ onLoad, t, mobile, isZena }) {
+  const accent  = isZena ? ZENA : UI;
+  const hoverBg = isZena ? "rgba(123,63,175,0.12)" : t.advActiveBg;
+  const hint    = isZena ? "https://zena.aktualne.cz/…" : "https://zpravy.aktualne.cz/…";
   const [url, setUrl]         = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg]         = useState(null); // { type:"err"|"ok", text }
@@ -599,7 +602,7 @@ function ArticleLoader({ onLoad, t, mobile }) {
 
   const fetchFeedPage = async (page, append) => {
     try {
-      const resp = await fetch(`/api/fetch-feed?page=${page}`);
+      const resp = await fetch(`/api/fetch-feed?page=${page}${isZena ? "&source=zena" : ""}`);
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) { setFeedErr(data.error || `Chyba ${resp.status}.`); return; }
       setFeedErr(null);
@@ -649,16 +652,16 @@ function ArticleLoader({ onLoad, t, mobile }) {
       <input type="url" value={url} onChange={e => setUrl(e.target.value)}
         onFocus={selectInput}
         onKeyDown={e => { if (e.key === "Enter") run(); }}
-        placeholder="https://zpravy.aktualne.cz/…"
+        placeholder={hint}
         style={mkInp(t, mobile)} />
       <button onClick={() => run()} disabled={loading}
-        style={{ ...mkBtn(true, UI, t), width:"100%", marginTop:6, padding:"8px 0", opacity: loading ? 0.6 : 1, cursor: loading ? "default" : "pointer" }}>
+        style={{ ...mkBtn(true, accent, t), width:"100%", marginTop:6, padding:"8px 0", opacity: loading ? 0.6 : 1, cursor: loading ? "default" : "pointer" }}>
         {loading ? "Načítám…" : "Načíst článek"}
       </button>
       {msg && <div style={{ fontSize:11, color: msg.type === "err" ? "#d9534f" : t.textMuted, marginTop:6, lineHeight:1.4 }}>{msg.text}</div>}
 
       <button onClick={toggleFeed}
-        style={{ background:"none", border:"none", color:UI, cursor:"pointer", fontSize:11, fontWeight:600, padding:0, marginTop:8, display:"flex", alignItems:"center", gap:5 }}>
+        style={{ background:"none", border:"none", color:accent, cursor:"pointer", fontSize:11, fontWeight:600, padding:0, marginTop:8, display:"flex", alignItems:"center", gap:5 }}>
         <span style={{ fontSize:9, display:"inline-block", transform: feedOpen ? "rotate(90deg)" : "none", transition:"transform .15s" }}>▶</span>
         Nejnovější články
       </button>
@@ -669,9 +672,9 @@ function ArticleLoader({ onLoad, t, mobile }) {
           {!feedLoading && !feedErr && feedItems.map((it, i) => (
             <button key={i} onClick={() => pick(it.link)}
               onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
-              style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? t.advActiveBg : "transparent", color: hoveredIdx === i ? UI : t.textPrimary }}>
+              style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? hoverBg : "transparent", color: hoveredIdx === i ? accent : t.textPrimary }}>
               {it.time && (
-                <span style={{ display:"inline-flex", alignItems:"center", fontWeight:700, color: hoveredIdx === i ? UI : t.textMuted, marginRight:6, whiteSpace:"nowrap" }}>
+                <span style={{ display:"inline-flex", alignItems:"center", fontWeight:700, color: hoveredIdx === i ? accent : t.textMuted, marginRight:6, whiteSpace:"nowrap" }}>
                   {it.time}
                   {updatedFlags[i] && <span title="Aktualizováno" style={{ width:6, height:6, borderRadius:"50%", background:"#E8821E", marginLeft:4, flexShrink:0 }} />}
                 </span>
@@ -682,7 +685,7 @@ function ArticleLoader({ onLoad, t, mobile }) {
           {!feedLoading && !feedErr && feedItems.length === 0 && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Žádné články.</div>}
           {!feedLoading && !feedErr && feedHasMore && (
             <button onClick={loadMore} disabled={feedMore}
-              style={{ display:"block", width:"100%", textAlign:"center", border:"none", borderTop:`1px solid ${t.borderLight}`, background:"transparent", color:UI, cursor: feedMore ? "default" : "pointer", fontSize:11, fontWeight:600, padding:"9px 10px", opacity: feedMore ? 0.6 : 1 }}>
+              style={{ display:"block", width:"100%", textAlign:"center", border:"none", borderTop:`1px solid ${t.borderLight}`, background:"transparent", color:accent, cursor: feedMore ? "default" : "pointer", fontSize:11, fontWeight:600, padding:"9px 10px", opacity: feedMore ? 0.6 : 1 }}>
               {feedMore ? "Načítám…" : "Načíst další"}
             </button>
           )}
@@ -695,14 +698,15 @@ function ArticleLoader({ onLoad, t, mobile }) {
 function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, selectAll, t, mobile }) {
   const set = (key, val) => dispatch({ type:"SET", key, value:val });
   const B   = active => mkBtn(active, UI, t);
+  const accent = st.bgMode === "templateZena" ? ZENA : UI;
   const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image") || st.bgMode === "templateZena";
   return (
     <>
-      <ArticleLoader onLoad={onLoadArticle} t={t} mobile={mobile} />
+      <ArticleLoader key={st.bgMode === "templateZena" ? "zena" : "default"} onLoad={onLoadArticle} t={t} mobile={mobile} isZena={st.bgMode === "templateZena"} />
       <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
-          <button key={f.id} onClick={() => { set("fmt", f); set("cropRect", null); }} style={{ ...B(st.fmt.id===f.id), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
+          <button key={f.id} onClick={() => { set("fmt", f); set("cropRect", null); }} style={{ ...mkBtn(st.fmt.id===f.id, accent, t), display:"flex", flexDirection:"column", alignItems:"center", gap:1, padding:"7px 4px" }}>
             <span style={{ fontSize:11 }}>{f.label}</span>
             <span style={{ fontSize:10, opacity:0.7 }}>{f.sub}</span>
           </button>
@@ -724,7 +728,7 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
       <AutoTextarea value={st.subtext} onChange={e => set("subtext", e.target.value)} onFocus={selectAll} placeholder="Volitelný perex…" minHeight={52} t={t} mobile={mobile} />
       {isPhotoMode && (
         <>
-          <label style={mkLbl(t)}>Credit fotografa</label>
+          <label style={mkLbl(t)}>Kredit fotografa</label>
           <input type="text" value={st.photoCredit} onChange={e => set("photoCredit", e.target.value)} placeholder="Jméno / agentura…" style={mkInp(t, mobile)} />
         </>
       )}
@@ -792,12 +796,12 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, mobile, t }) {
+function Actions({ fmt, onReset, onExport, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
       <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
-      <button onClick={onExport} style={{ ...mkBtn(true,  UI, t), width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
+      <button onClick={onExport} style={{ ...mkBtn(true,  accent, t), width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
       <div style={{ fontSize:10, color:t.textFaint, textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
     </div>
   );
@@ -1094,7 +1098,7 @@ export default function App() {
   const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t, accent: st.bgMode === "templateZena" ? ZENA : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
