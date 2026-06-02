@@ -24,10 +24,10 @@ const DEFAULTS = {
   headline: "Sem patří text", subtext: "", supertitle: "", photoCredit: "", creditColor: "#ffffff",
   textColor: "#ffffff", textAlign: "left", textPos: "bottom",
   fontFamily: "Inter", fontScale: 1.0,
-  bgMode: "template2", logoVariant: "blue",
+  bgMode: "template3", logoVariant: "blue",
   customSub: "image", bgColor: "#1B69BF", overlayOpacity: 0.40,
   showPerex: false,
-  richVariant: "light", richPhotoPos: "top", richPanelColor: "#1B69BF",
+  richVariant: "dark", richPhotoPos: "top", richPanelColor: "#1B69BF",
   zenaOverlay: "light", zenaOverlayOpacity: 0.85,
   fmt: FORMATS[0], advancedOpen: false, cropRect: null,
 };
@@ -661,8 +661,8 @@ function ArticleLoader({ onLoad, t, mobile, isZena }) {
       {msg && <div style={{ fontSize:11, color: msg.type === "err" ? "#d9534f" : t.textMuted, marginTop:6, lineHeight:1.4 }}>{msg.text}</div>}
 
       <button onClick={toggleFeed}
-        style={{ background:"none", border:"none", color:accent, cursor:"pointer", fontSize:11, fontWeight:600, padding:0, marginTop:8, display:"flex", alignItems:"center", gap:5 }}>
-        <span style={{ fontSize:9, display:"inline-block", transform: feedOpen ? "rotate(90deg)" : "none", transition:"transform .15s" }}>▶</span>
+        style={{ background:"none", border:"none", color:accent, cursor:"pointer", fontSize:13, fontWeight:600, padding:0, marginTop:8, display:"flex", alignItems:"center", gap:5 }}>
+        <span style={{ fontSize:10, display:"inline-block", transform: feedOpen ? "rotate(90deg)" : "none", transition:"transform .15s" }}>▶</span>
         Nejnovější články
       </button>
       {feedOpen && (
@@ -672,7 +672,7 @@ function ArticleLoader({ onLoad, t, mobile, isZena }) {
           {!feedLoading && !feedErr && feedItems.map((it, i) => (
             <button key={i} onClick={() => pick(it.link)}
               onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
-              style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:11.5, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? hoverBg : "transparent", color: hoveredIdx === i ? accent : t.textPrimary }}>
+              style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:13, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? hoverBg : "transparent", color: hoveredIdx === i ? accent : t.textPrimary }}>
               {it.time && (
                 <span style={{ display:"inline-flex", alignItems:"center", fontWeight:700, color: hoveredIdx === i ? accent : t.textMuted, marginRight:6, whiteSpace:"nowrap" }}>
                   {it.time}
@@ -1052,9 +1052,10 @@ export default function App() {
             imgRef.current = img;
             dispatch({ type:"SET", key:"cropRect", value:null });
             if (!photoMode) {
-              dispatch({ type:"SET", key:"bgMode",    value:"custom" });
-              dispatch({ type:"SET", key:"customSub", value:"image" });
-              dispatch({ type:"SET", key:"logoVariant", value:"blue" });
+              dispatch({ type:"SET", key:"bgMode",       value:"template3" });
+              dispatch({ type:"SET", key:"richPhotoPos", value:"top" });
+              dispatch({ type:"SET", key:"richVariant",  value:"dark" });
+              dispatch({ type:"SET", key:"logoVariant",  value:"blue" });
             }
             resolve();
           };
