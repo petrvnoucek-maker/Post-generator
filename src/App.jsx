@@ -180,7 +180,7 @@ function drawTemplateRich(ctx, w, h, opts) {
   const { bgImage, headline, subtext, supertitle, fontFamily, fontScale,
           logoVariant, richVariant, richPhotoPos, richPanelColor, cropRect, photoCredit } = opts;
   const ff = `${fontFamily}, Arial, sans-serif`;
-  const hs = Math.round(w * 0.075 * fontScale), ss = Math.round(w * 0.038 * fontScale);
+  const hs = Math.round(w * 0.075 * fontScale * 0.85), ss = Math.round(w * 0.038 * fontScale * 0.85);
   const pad = w * 0.08, maxW = w * 0.84;
   const photoH = Math.round(h * 0.55), panelH = h - photoH;
   const photoY = richPhotoPos === "top" ? 0 : panelH;
@@ -191,7 +191,7 @@ function drawTemplateRich(ctx, w, h, opts) {
   else drawPhotoPlaceholder(ctx, 0, photoY, w, photoH, 0.5);
   const textCol   = richVariant === "light" ? "#111111" : "#ffffff";
   const accentCol = richVariant === "light" ? UI : richVariant === "color" ? "#ffffff" : "#6AABF0";
-  const stSize0 = Math.round(w * 0.034 * fontScale);
+  const stSize0 = Math.round(w * 0.034 * fontScale * 0.85);
   const hasSuper = !!(supertitle && supertitle.trim());
   const availH = panelH * 0.80;
   let fit = 1;
