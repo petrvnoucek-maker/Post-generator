@@ -825,13 +825,13 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, mobile, t, accen
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
       <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
-      <button onClick={onExport} style={{ ...mkBtn(true,  accent, t), width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
+      <button onClick={handleCopy} style={{ ...mkBtn(true, accent, t), width:"100%", fontSize:fz, padding:pad }}>
+        {copied === "ok" ? "Zkopírováno ✓" : copied === "err" ? "Nepodporováno" : "Kopírovat do schránky"}
+      </button>
       <div style={{ display:"flex", gap:8 }}>
+        <button onClick={onExport} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0" }}>⬇ Stáhnout</button>
         <button onClick={handleAll} disabled={allBusy} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0", opacity: allBusy ? 0.6 : 1 }}>
-          {allBusy ? "Stahuji…" : "Všechny formáty"}
-        </button>
-        <button onClick={handleCopy} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0" }}>
-          {copied === "ok" ? "Zkopírováno ✓" : copied === "err" ? "Nepodporováno" : "📋 Kopírovat"}
+          {allBusy ? "Stahuji…" : "⬇ Všechny formáty"}
         </button>
       </div>
       <div style={{ fontSize:10, color:t.textFaint, textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
