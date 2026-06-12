@@ -36,6 +36,42 @@ function stripSite(t) {
   return t.replace(/\s*[|\u2013-]\s*Aktuálně\.cz\s*$/i, "").trim();
 }
 
+// JSON-LD: kredit hlavní fotky z NewsArticle.image.creditText.
+// Struktura může být: objekt s @graph, samotný NewsArticle, nebo pole;
+// image může být string, ImageObject, nebo pole obojího.
+function extractJsonLdCredit(html) {
+  const scripts = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
+  for (const tag of scripts) {
+    const raw = tag.replace(/^<script[^>]*>/i, "").replace(/<\/script>$/i, "").trim();
+    let data;
+    try { data = JSON.parse(raw); } catch { continue; }
+    const nodes = [];
+    const collect = d => {
+      if (!d) return;
+      if (Array.isArray(d)) { d.forEach(collect); return; }
+      if (typeof d === "object") { nodes.push(d); if (d["@graph"]) collect(d["@graph"]); }
+    };
+    collect(data);
+    for (const n of nodes) {
+      const t = n["@type"];
+      const isArticle = t === "NewsArticle" || t === "Article" ||
+                        (Array.isArray(t) && (t.includes("NewsArticle") || t.includes("Article")));
+      if (!isArticle || !n.image) continue;
+      const imgs = Array.isArray(n.image) ? n.image : [n.image];
+      for (const im of imgs) {
+        if (im && typeof im === "object" && im.creditText && String(im.creditText).trim()) {
+          // dedup po segmentech ("Profimedia / Profimedia" → "Profimedia")
+          return String(im.creditText).trim()
+            .split(/\s*\/\s*/)
+            .filter((seg, i, arr) => seg && seg !== arr[i - 1])
+            .join(" / ");
+        }
+      }
+    }
+  }
+  return "";
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -83,6 +119,8 @@ export default async function handler(req, res) {
   }
   // fallback na og:image (typicky poutací foto pro sdílení)
   if (!imgUrl) imgUrl = metaContent(html, "property", "og:image") || metaContent(html, "name", "twitter:image");
+  // fallback kreditu z JSON-LD (strukturovaná data – spolehlivější než text)
+  if (!credit) credit = extractJsonLdCredit(html);
   // fallback kreditu z textu "Foto: …"
   if (!credit) {
     const fc = html.match(/Foto:\s*([^<\n]{1,80})/);
