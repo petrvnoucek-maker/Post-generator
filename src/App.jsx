@@ -68,9 +68,16 @@ const getMeasureCtx = (() => {
   let ctx = null;
   return () => { if (!ctx) ctx = document.createElement("canvas").getContext("2d"); return ctx; };
 })();
+// Česká typografie: nezlomitelná mezera po jednopísmenných předložkách a spojkách
+// (k, s, v, z, o, u, a, i). Dvojí průchod kvůli sousedícím výskytům ("a v Praze").
+function czTypo(text) {
+  if (!text) return text;
+  const re = /([\s(„"']|^)([ksvzouaiKSVZOUAI])[ ]+/g;
+  return text.replace(re, "$1$2\u00A0").replace(re, "$1$2\u00A0");
+}
 function wrapLines(fontStr, text, maxW) {
   const MX = getMeasureCtx(); MX.font = fontStr;
-  const words = (text || "").split(" ").filter(Boolean);
+  const words = czTypo(text || "").split(" ").filter(Boolean);
   const lines = []; let line = "";
   for (const word of words) {
     const test = line + word + " ";
@@ -215,7 +222,7 @@ function drawTemplateRich(ctx, w, h, opts) {
   ty += hLines.length * hsF * 1.28;
   if (sLines.length) { ty += ssF * 0.9; ctx.font = `${ssF}px ${ff}`; ctx.globalAlpha = 0.72; sLines.forEach((l, i) => ctx.fillText(l, pad, ty + i * ssF * 1.4 + ssF * 0.88)); ctx.globalAlpha = 1; }
   const creditH = richPhotoPos === "top" ? photoH : h;
-  drawPhotoCredit(ctx, w, creditH, photoCredit, "#ffffff");
+  drawPhotoCredit(ctx, w, creditH, photoCredit, opts.creditColor || "#ffffff");
   drawLogo(ctx, w, h, logoVariant);
 }
 function drawTemplateBlack(ctx, w, h, opts) {
@@ -652,6 +659,10 @@ function ArticleLoader({ onLoad, t, mobile, isZena }) {
       <input type="url" value={url} onChange={e => setUrl(e.target.value)}
         onFocus={selectInput}
         onKeyDown={e => { if (e.key === "Enter") run(); }}
+        onPaste={e => {
+          const txt = (e.clipboardData.getData("text") || "").trim();
+          if (/aktualne\.cz\//i.test(txt)) { e.preventDefault(); run(txt); }
+        }}
         placeholder={hint}
         style={mkInp(t, mobile)} />
       <button onClick={() => run()} disabled={loading}
@@ -796,12 +807,33 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, mobile, t, accent = UI }) {
+function Actions({ fmt, onReset, onExport, onExportAll, onCopy, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
+  const [copied, setCopied]     = useState(null); // null | "ok" | "err"
+  const [allBusy, setAllBusy]   = useState(false);
+  const handleCopy = async () => {
+    const ok = await onCopy();
+    setCopied(ok ? "ok" : "err");
+    setTimeout(() => setCopied(null), 1800);
+  };
+  const handleAll = () => {
+    if (allBusy) return;
+    setAllBusy(true);
+    onExportAll();
+    setTimeout(() => setAllBusy(false), 1600);
+  };
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
       <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
       <button onClick={onExport} style={{ ...mkBtn(true,  accent, t), width:"100%", fontSize:fz, padding:pad }}>⬇ Stáhnout</button>
+      <div style={{ display:"flex", gap:8 }}>
+        <button onClick={handleAll} disabled={allBusy} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0", opacity: allBusy ? 0.6 : 1 }}>
+          {allBusy ? "Stahuji…" : "Všechny formáty"}
+        </button>
+        <button onClick={handleCopy} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0" }}>
+          {copied === "ok" ? "Zkopírováno ✓" : copied === "err" ? "Nepodporováno" : "📋 Kopírovat"}
+        </button>
+      </div>
       <div style={{ fontSize:10, color:t.textFaint, textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
     </div>
   );
@@ -1084,22 +1116,60 @@ export default function App() {
 
   const doReset = () => { imgRef.current = null; dispatch({ type:"RESET" }); setConfirmReset(false); };
 
-  const exportAs = () => {
-    const { w, h } = st.fmt;
-    const off = document.createElement("canvas"); off.width = w; off.height = h;
-    drawPost(off.getContext("2d"), w, h, buildOpts());
-    const tplName  = TEMPLATE_NAMES[effectiveBgMode] || "vlastni";
-    const randomId = Math.floor(100000 + Math.random() * 900000);
+  const slugify = s => (s || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "post";
+
+  const exportName = f => {
+    const tplName = TEMPLATE_NAMES[effectiveBgMode] || "vlastni";
+    const date    = new Date().toISOString().slice(0, 10);
+    return `${slugify(st.headline)}-${tplName}-${f.id}-${date}.png`;
+  };
+
+  const renderOffscreen = (f, cropForFmt) => {
+    const off = document.createElement("canvas"); off.width = f.w; off.height = f.h;
+    drawPost(off.getContext("2d"), f.w, f.h, buildOpts({ cropRect: cropForFmt }));
+    return off;
+  };
+
+  const downloadCanvas = (off, name) => {
     const a = document.createElement("a");
-    a.href = off.toDataURL("image/png", 0.93);
-    a.download = `aktualne-${tplName}-${st.fmt.id}-${randomId}.png`;
+    a.href = off.toDataURL("image/png");
+    a.download = name;
     a.dispatchEvent(new MouseEvent("click", { bubbles:true, cancelable:true, view:window }));
+  };
+
+  const exportAs = () => {
+    downloadCanvas(renderOffscreen(st.fmt, st.cropRect), exportName(st.fmt));
+  };
+
+  // Batch export všech formátů. Crop výřez platí jen pro aktuální formát
+  // (je vázaný na jeho poměr stran); ostatní formáty dostanou automatický center-crop.
+  const exportAllFormats = () => {
+    FORMATS.forEach((f, idx) => {
+      setTimeout(() => {
+        const crop = f.id === st.fmt.id ? st.cropRect : null;
+        downloadCanvas(renderOffscreen(f, crop), exportName(f));
+      }, idx * 400);
+    });
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) return false;
+      const off  = renderOffscreen(st.fmt, st.cropRect);
+      const blob = await new Promise(r => off.toBlob(r, "image/png"));
+      if (!blob) return false;
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      return true;
+    } catch { return false; }
   };
 
   const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, t, accent: st.bgMode === "templateZena" ? ZENA : UI };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, t, accent: st.bgMode === "templateZena" ? ZENA : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
