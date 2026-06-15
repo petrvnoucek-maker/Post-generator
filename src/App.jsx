@@ -1222,15 +1222,19 @@ export default function App() {
           </div>
         </div>
       ) : (
-        <div style={{ display:"flex", minHeight:"100vh" }}>
-          <div style={{ width:300, background:t.bgSidebar, borderRight:`1px solid ${t.border}`, padding:"20px 18px", overflowY:"auto", flexShrink:0 }}>
-            <div style={{ marginBottom:16 }}>
+        <div style={{ display:"flex", height:"100vh", overflow:"hidden" }}>
+          <div style={{ width:300, background:t.bgSidebar, borderRight:`1px solid ${t.border}`, display:"flex", flexDirection:"column", height:"100vh", flexShrink:0 }}>
+            <div style={{ padding:"20px 18px 0" }}>
               <AppHeader logoCanvasRef={logoCanvasRef} onLogoClick={() => setConfirmReset(true)} t={t} />
             </div>
-            <Controls {...controlsProps} />
-            <Actions {...actionsProps} />
+            <div style={{ flex:1, overflowY:"auto", padding:"16px 18px 8px" }}>
+              <Controls {...controlsProps} />
+            </div>
+            <div style={{ padding:"0 18px 18px", background:t.bgSidebar, flexShrink:0 }}>
+              <Actions {...actionsProps} />
+            </div>
           </div>
-          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:32 }}>
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:32, overflowY:"auto" }}>
             <Preview {...previewProps} />
           </div>
         </div>
