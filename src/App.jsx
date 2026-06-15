@@ -816,14 +816,20 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, onExportAll, onCopy, mobile, t, accent = UI }) {
+function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onCopyPaste, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
   const [copied, setCopied]     = useState(null); // null | "ok" | "err"
+  const [pasted, setPasted]     = useState(null); // null | "ok" | "err"
   const [allBusy, setAllBusy]   = useState(false);
   const handleCopy = async () => {
     const ok = await onCopy();
     setCopied(ok ? "ok" : "err");
     setTimeout(() => setCopied(null), 1800);
+  };
+  const handleCopyPaste = async () => {
+    const ok = await onCopyPaste();
+    setPasted(ok ? "ok" : "err");
+    setTimeout(() => setPasted(null), 2400);
   };
   const handleAll = () => {
     if (allBusy) return;
@@ -836,6 +842,9 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, mobile, t, accen
       <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
       <button onClick={handleCopy} style={{ ...mkBtn(true, accent, t), width:"100%", fontSize:fz, padding:pad }}>
         {copied === "ok" ? "Zkopírováno ✓" : copied === "err" ? "Nepodporováno" : "Kopírovat do schránky"}
+      </button>
+      <button onClick={handleCopyPaste} style={{ ...mkBtn(false, accent, t), width:"100%", fontSize:fz, padding:pad }}>
+        {pasted === "ok" ? "Zkopírováno · Meta otevřena ✓" : pasted === "err" ? "Schránka nepodporována (Meta otevřena)" : "Zkopírovat a vložit"}
       </button>
       <div style={{ display:"flex", gap:8 }}>
         <button onClick={onExport} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0" }}>⬇ Stáhnout</button>
@@ -1190,10 +1199,32 @@ export default function App() {
     }
   };
 
+  const copyAndOpenMeta = async () => {
+    // Okno otevřít synchronně v rámci kliknutí, jinak ho zablokuje popup blocker.
+    const win = window.open("https://business.facebook.com/latest/home", "metaBusinessSuite", "width=1200,height=900");
+    if (win) win.opener = null;
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") return false;
+    try {
+      const perex = (st.subtext || "").trim();
+      const parts = {
+        "image/png": new Promise((res, rej) => {
+          const off = renderOffscreen(st.fmt, st.cropRect);
+          off.toBlob(b => (b ? res(b) : rej(new Error("toBlob null"))), "image/png");
+        }),
+      };
+      if (perex) parts["text/plain"] = new Blob([perex], { type: "text/plain" });
+      await navigator.clipboard.write([new ClipboardItem(parts)]);
+      return true;
+    } catch (e) {
+      console.warn("Zkopírovat a vložit – schránka selhala:", e);
+      return false;
+    }
+  };
+
   const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, t, accent: st.bgMode === "templateZena" ? ZENA : UI };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, onCopyPaste: copyAndOpenMeta, t, accent: st.bgMode === "templateZena" ? ZENA : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
