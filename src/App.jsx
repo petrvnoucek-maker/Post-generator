@@ -641,6 +641,19 @@ function ArticleLoader({ onLoad, t, mobile, isZena }) {
   const pick = (link) => { setFeedOpen(false); setMsg(null); run(link); };
   const selectInput = e => { const el = e.target; setTimeout(() => el.select(), 0); };
 
+  // Globální Ctrl+V: vložení URL ze schránky kdekoli v aplikaci načte článek,
+  // i bez kliknutí do pole. Stačí mít URL aktualne.cz ve schránce.
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    const onDocPaste = (e) => {
+      const txt = (e.clipboardData && e.clipboardData.getData("text") || "").trim();
+      if (/aktualne\.cz\//i.test(txt)) { e.preventDefault(); runRef.current(txt); }
+    };
+    document.addEventListener("paste", onDocPaste);
+    return () => document.removeEventListener("paste", onDocPaste);
+  }, []);
+
   // Článek je "aktualizovaný", pokud má starší čas vydání než kterýkoli článek pod ním
   // (feed je řazen podle času aktualizace → taková inverze znamená posun nahoru kvůli update).
   const updatedFlags = (() => {
@@ -659,10 +672,6 @@ function ArticleLoader({ onLoad, t, mobile, isZena }) {
       <input type="url" value={url} onChange={e => setUrl(e.target.value)}
         onFocus={selectInput}
         onKeyDown={e => { if (e.key === "Enter") run(); }}
-        onPaste={e => {
-          const txt = (e.clipboardData.getData("text") || "").trim();
-          if (/aktualne\.cz\//i.test(txt)) { e.preventDefault(); run(txt); }
-        }}
         placeholder={hint}
         style={mkInp(t, mobile)} />
       <button onClick={() => run()} disabled={loading}
