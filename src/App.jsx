@@ -1156,14 +1156,29 @@ export default function App() {
   };
 
   const copyToClipboard = async () => {
+    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") return false;
     try {
-      if (!navigator.clipboard || !window.ClipboardItem) return false;
-      const off  = renderOffscreen(st.fmt, st.cropRect);
-      const blob = await new Promise(r => off.toBlob(r, "image/png"));
-      if (!blob) return false;
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      // Blob předáme líně přes Promise → clipboard.write se volá synchronně
+      // v rámci kliknutí (zachová "user activation", funguje i v Safari).
+      const blobPromise = new Promise((resolve, reject) => {
+        const off = renderOffscreen(st.fmt, st.cropRect);
+        off.toBlob(b => (b ? resolve(b) : reject(new Error("toBlob vrátil null"))), "image/png");
+      });
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
       return true;
-    } catch { return false; }
+    } catch (e1) {
+      // Fallback: některé prohlížeče vyžadují už hotový blob
+      try {
+        const off  = renderOffscreen(st.fmt, st.cropRect);
+        const blob = await new Promise(r => off.toBlob(r, "image/png"));
+        if (!blob) return false;
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        return true;
+      } catch (e2) {
+        console.warn("Kopírování do schránky selhalo:", e2);
+        return false;
+      }
+    }
   };
 
   const hasImage      = !!imgRef.current;
