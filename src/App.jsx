@@ -719,6 +719,16 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
   const set = (key, val) => dispatch({ type:"SET", key, value:val });
   const B   = active => mkBtn(active, UI, t);
   const accent = st.bgMode === "templateZena" ? ZENA : UI;
+  const [perexCopied, setPerexCopied] = useState(false);
+  const copyPerex = async () => {
+    const perex = (st.subtext || "").trim();
+    if (!perex || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(perex);
+      setPerexCopied(true);
+      setTimeout(() => setPerexCopied(false), 1400);
+    } catch { /* ignore */ }
+  };
   const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image") || st.bgMode === "templateZena";
   return (
     <>
@@ -740,11 +750,22 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
       )}
       <label style={mkLbl(t)}>Titulek</label>
       <AutoTextarea value={st.headline} onChange={e => set("headline", e.target.value)} onFocus={selectAll} minHeight={44} t={t} mobile={mobile} />
-      <label style={{ ...mkLbl(t), display:"flex", alignItems:"center", gap:6 }}>
-        <input type="checkbox" checked={st.showPerex} onChange={e => set("showPerex", e.target.checked)} style={{ margin:0, cursor:"pointer" }} />
-        <span>Perex</span>
-        <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:t.textMuted }}>{st.showPerex ? "(zobrazit)" : "(skryto)"}</span>
-      </label>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:12, marginBottom:4 }}>
+        <label style={{ ...mkLbl(t), display:"flex", alignItems:"center", gap:6, margin:0 }}>
+          <input type="checkbox" checked={st.showPerex} onChange={e => set("showPerex", e.target.checked)} style={{ margin:0, cursor:"pointer" }} />
+          <span>Perex</span>
+          <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:t.textMuted }}>{st.showPerex ? "(zobrazit)" : "(skryto)"}</span>
+        </label>
+        <button onClick={copyPerex} disabled={!(st.subtext || "").trim()} title="Kopírovat perex do schránky"
+          style={{ display:"flex", alignItems:"center", gap:4, background:"none", border:"none", padding:"2px 4px", cursor: (st.subtext || "").trim() ? "pointer" : "default", color: perexCopied ? "#2e9e5b" : ((st.subtext || "").trim() ? accent : t.textFaint) }}>
+          {perexCopied ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+          )}
+          <span style={{ fontSize:10, fontWeight:600 }}>{perexCopied ? "Zkopírováno" : "Kopírovat"}</span>
+        </button>
+      </div>
       <AutoTextarea value={st.subtext} onChange={e => set("subtext", e.target.value)} onFocus={selectAll} placeholder="Volitelný perex…" minHeight={52} t={t} mobile={mobile} />
       {isPhotoMode && (
         <>
@@ -816,26 +837,14 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onCopyPaste, onCopyPerex, hasPerex, mobile, t, accent = UI }) {
+function Actions({ fmt, onReset, onExport, onExportAll, onCopy, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
-  const [copied, setCopied]     = useState(null);
-  const [pasted, setPasted]     = useState(null);
-  const [perexS, setPerexS]     = useState(null);
+  const [copied, setCopied]     = useState(null); // null | "ok" | "err"
   const [allBusy, setAllBusy]   = useState(false);
   const handleCopy = async () => {
     const ok = await onCopy();
     setCopied(ok ? "ok" : "err");
     setTimeout(() => setCopied(null), 1800);
-  };
-  const handleCopyPaste = async () => {
-    const ok = await onCopyPaste();
-    setPasted(ok ? "ok" : "err");
-    setTimeout(() => setPasted(null), 2400);
-  };
-  const handleCopyPerex = async () => {
-    const ok = await onCopyPerex();
-    setPerexS(ok ? "ok" : "err");
-    setTimeout(() => setPerexS(null), 1800);
   };
   const handleAll = () => {
     if (allBusy) return;
@@ -849,14 +858,6 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onCopyPaste, onC
       <button onClick={handleCopy} style={{ ...mkBtn(true, accent, t), width:"100%", fontSize:fz, padding:pad }}>
         {copied === "ok" ? "Zkopírováno ✓" : copied === "err" ? "Nepodporováno" : "Kopírovat do schránky"}
       </button>
-      <div style={{ display:"flex", gap:8 }}>
-        <button onClick={handleCopyPaste} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0" }}>
-          {pasted === "ok" ? "Obrázek + Meta ✓" : pasted === "err" ? "Schránka nepodp." : "1 · Zkopírovat a vložit"}
-        </button>
-        <button onClick={handleCopyPerex} disabled={!hasPerex} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0", opacity: hasPerex ? 1 : 0.45, cursor: hasPerex ? "pointer" : "default" }}>
-          {perexS === "ok" ? "Perex ✓" : perexS === "err" ? "Nepodp." : "2 · Kopírovat perex"}
-        </button>
-      </div>
       <div style={{ display:"flex", gap:8 }}>
         <button onClick={onExport} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0" }}>⬇ Stáhnout</button>
         <button onClick={handleAll} disabled={allBusy} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0", opacity: allBusy ? 0.6 : 1 }}>
@@ -1210,44 +1211,10 @@ export default function App() {
     }
   };
 
-  const copyAndOpenMeta = async () => {
-    // Okno otevřít synchronně v rámci kliknutí, jinak ho zablokuje popup blocker.
-    const win = window.open("https://business.facebook.com/latest/home", "metaBusinessSuite", "width=1200,height=900");
-    if (win) win.opener = null;
-    if (!navigator.clipboard || typeof window.ClipboardItem === "undefined") return false;
-    try {
-      // POUZE obrázek – kdyby byl ve schránce i text, Meta composer vloží text a obrázek zahodí.
-      const blobPromise = new Promise((res, rej) => {
-        const off = renderOffscreen(st.fmt, st.cropRect);
-        off.toBlob(b => (b ? res(b) : rej(new Error("toBlob null"))), "image/png");
-      });
-      await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
-      return true;
-    } catch (e) {
-      console.warn("Zkopírovat a vložit – schránka selhala:", e);
-      return false;
-    }
-  };
-
-  const copyPerex = async () => {
-    const perex = (st.subtext || "").trim();
-    if (!perex) return false;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(perex);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      console.warn("Kopírování perexu selhalo:", e);
-      return false;
-    }
-  };
-
   const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, onCopyPaste: copyAndOpenMeta, onCopyPerex: copyPerex, hasPerex: !!(st.subtext || "").trim(), t, accent: st.bgMode === "templateZena" ? ZENA : UI };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, t, accent: st.bgMode === "templateZena" ? ZENA : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
