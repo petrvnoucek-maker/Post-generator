@@ -11,6 +11,17 @@ const IMG_HOST     = /(^|\.)(aktualne\.cz|eco-files\.cz|xsd\.cz)$/i;
 const UA           = "Mozilla/5.0 (compatible; AktualnePostGenerator/1.0)";
 const MAX_IMG_BYTES = 8 * 1024 * 1024;
 
+// Server-side timeout na jednotlivé fetch – nechceme čekat donekonečna na pomalé CDN.
+async function fetchWithTimeout(url, opts = {}, ms = 8000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 function decode(s) {
   if (!s) return s;
   return s
@@ -88,14 +99,15 @@ export default async function handler(req, res) {
   // 1) Stáhnout HTML článku (server-side → bez CORS)
   let html;
   try {
-    const r = await fetch(u.toString(), {
+    const r = await fetchWithTimeout(u.toString(), {
       headers: { "User-Agent": UA, "Accept-Language": "cs,en;q=0.8" },
       redirect: "follow",
-    });
+    }, 8000);
     if (!r.ok) return res.status(502).json({ error: `Článek nelze načíst (HTTP ${r.status}).` });
     html = await r.text();
-  } catch {
-    return res.status(502).json({ error: "Článek se nepodařilo stáhnout." });
+  } catch (e) {
+    const timeout = e && e.name === "AbortError";
+    return res.status(502).json({ error: timeout ? "Server aktualne.cz odpovídal příliš dlouho." : "Článek se nepodařilo stáhnout." });
   }
 
   // 2) Titulek + perex
@@ -138,7 +150,7 @@ export default async function handler(req, res) {
     try {
       const iu = new URL(imgUrl, u);
       if (iu.protocol === "https:" && IMG_HOST.test(iu.hostname)) {
-        const ir = await fetch(iu.toString(), { headers: { "User-Agent": UA }, redirect: "follow" });
+        const ir = await fetchWithTimeout(iu.toString(), { headers: { "User-Agent": UA }, redirect: "follow" }, 8000);
         if (ir.ok) {
           const ct = (ir.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
           if (ct.startsWith("image/")) {
