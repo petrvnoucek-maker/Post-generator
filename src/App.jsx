@@ -1092,11 +1092,16 @@ export default function App() {
     reader.readAsDataURL(file);
   }, [st.fmt, buildOpts, previewMax]);
 
-  const loadFromArticle = useCallback(async (rawUrl) => {
+  const loadFromArticle = useCallback(async (rawUrl, isRetry = false) => {
     let target = rawUrl.trim();
     if (!/^https?:\/\//i.test(target)) target = "https://" + target;
+
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), 20000); // 20 s – článek + stažení fotky trvá typicky ~3 s
+
     try {
-      const resp = await fetch(`/api/fetch-og?url=${encodeURIComponent(target)}`);
+      const resp = await fetch(`/api/fetch-og?url=${encodeURIComponent(target)}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) return { ok:false, error: data.error || `Chyba ${resp.status}.` };
 
@@ -1126,8 +1131,16 @@ export default function App() {
         }).catch(() => {});
       }
       return { ok:true, noImage: !data.imageDataUrl };
-    } catch {
-      return { ok:false, error:"Síťová chyba. Ověř, že connect-src v vercel.json je 'self'." };
+    } catch (e) {
+      clearTimeout(timeoutId);
+      // Jedno tiché automatické opakování – mobilní sítě občas zahodí první request (handoff wifi/LTE apod.).
+      if (!isRetry && e && e.name !== "AbortError") {
+        return loadFromArticle(rawUrl, true);
+      }
+      if (e && e.name === "AbortError") {
+        return { ok:false, error:"Vypršel časový limit (20 s). Zkus to prosím znovu – server může být pomalý." };
+      }
+      return { ok:false, error:"Nepodařilo se připojit k serveru. Zkontroluj internetové připojení a zkus to znovu." };
     }
   }, [dispatch, st.bgMode, st.customSub]);
 
