@@ -42,6 +42,7 @@ const DEFAULTS = {
   zenaOverlay: "light", zenaOverlayOpacity: 0.85,
   ekonomOverlayOpacity: 0.9,
   brandTab: "aktualne",
+  articleUrl: "",
   fmt: FORMATS[0], advancedOpen: false, cropRect: null,
 };
 
@@ -1043,14 +1044,25 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, onExportAll, onCopy, mobile, t, accent = UI }) {
+function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, articleUrl, perex, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
   const [copied, setCopied]     = useState(null); // null | "ok" | "err"
   const [allBusy, setAllBusy]   = useState(false);
+  const [share, setShare]       = useState(null); // { forUrl, status:"loading"|"ok"|"err", shortlink?, error? }
+  const [shareCopied, setShareCopied] = useState(false);
+
   const handleCopy = async () => {
     const ok = await onCopy();
     setCopied(ok ? "ok" : "err");
     setTimeout(() => setCopied(null), 1800);
+    // Po zkopírování fotky připrav sdílecí text: zkrácený odkaz + perex
+    if (articleUrl) {
+      setShare({ forUrl: articleUrl, status: "loading" });
+      const r = await onShorten();
+      setShare(r.ok
+        ? { forUrl: articleUrl, status: "ok",  shortlink: r.shortlink }
+        : { forUrl: articleUrl, status: "err", error: r.error });
+    }
   };
   const handleAll = () => {
     if (allBusy) return;
@@ -1058,12 +1070,44 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, mobile, t, accen
     onExportAll();
     setTimeout(() => setAllBusy(false), 1600);
   };
+  // Text sdílecího pole: 👉 zkrácený odkaz + perex (fallback na plnou URL při chybě zkracovače)
+  const shareLink = share && (share.status === "ok" ? share.shortlink : share.status === "err" ? share.forUrl : null);
+  const shareText = shareLink ? `👉 ${shareLink}${(perex || "").trim() ? " " + perex.trim() : ""}` : "";
+  const showShare = share && share.forUrl === articleUrl; // skryj po resetu / načtení jiného článku
+  const copyShare = async () => {
+    if (!shareText || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1400);
+    } catch { /* ignore */ }
+  };
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
       <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
       <button onClick={handleCopy} style={{ ...mkBtn(true, accent, t), width:"100%", fontSize:fz, padding:pad }}>
         {copied === "ok" ? "Zkopírováno ✓" : copied === "err" ? "Nepodporováno" : "Kopírovat do schránky"}
       </button>
+      {showShare && (
+        <div style={{ border:`1px solid ${t.borderLight}`, borderRadius:7, padding:"8px 10px", background:t.bgAdvanced }}>
+          {share.status === "loading" && <div style={{ fontSize:11, color:t.textMuted }}>Zkracuji odkaz…</div>}
+          {share.status !== "loading" && (
+            <>
+              <div style={{ fontSize:12, color:t.textPrimary, lineHeight:1.45, wordBreak:"break-word", whiteSpace:"pre-wrap" }}>{shareText}</div>
+              {share.status === "err" && <div style={{ fontSize:10, color:"#d9534f", marginTop:4 }}>Zkrácení selhalo ({share.error}) – použita plná adresa.</div>}
+              <button onClick={copyShare} style={{ display:"flex", alignItems:"center", gap:4, background:"none", border:"none", padding:"4px 0 0", cursor:"pointer", color: shareCopied ? "#2e9e5b" : accent }}>
+                {shareCopied ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+                )}
+                <span style={{ fontSize:11, fontWeight:600 }}>{shareCopied ? "Zkopírováno" : "Kopírovat"}</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
       <div style={{ display:"flex", gap:8 }}>
         <button onClick={onExport} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0" }}>⬇ Stáhnout</button>
         <button onClick={handleAll} disabled={allBusy} style={{ ...mkBtn(false, accent, t), flex:1, fontSize:12, padding:"8px 0", opacity: allBusy ? 0.6 : 1 }}>
@@ -1312,6 +1356,7 @@ export default function App() {
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) return { ok:false, error: data.error || `Chyba ${resp.status}.` };
 
+      dispatch({ type:"SET", key:"articleUrl", value: target });
       if (data.title) dispatch({ type:"SET", key:"headline", value: data.title });
       if (data.perex) dispatch({ type:"SET", key:"subtext",  value: data.perex });
       dispatch({ type:"SET", key:"photoCredit", value: data.credit || "" });
@@ -1433,10 +1478,26 @@ export default function App() {
     }
   };
 
+  const shortCacheRef = useRef({});
+  const shortenArticleUrl = useCallback(async () => {
+    const url = st.articleUrl;
+    if (!url) return { ok:false, error:"Není načtený článek." };
+    if (shortCacheRef.current[url]) return { ok:true, shortlink: shortCacheRef.current[url] };
+    try {
+      const resp = await fetch(`/api/shorten?url=${encodeURIComponent(url)}`);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.shortlink) return { ok:false, error: data.error || `Chyba ${resp.status}.` };
+      shortCacheRef.current[url] = data.shortlink;
+      return { ok:true, shortlink: data.shortlink };
+    } catch {
+      return { ok:false, error:"Zkrácení se nepodařilo (síť)." };
+    }
+  }, [st.articleUrl]);
+
   const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, t, accent: st.bgMode === "templateZena" ? ZENA : (st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto") ? ekonomAccent(t) : UI };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, onShorten: shortenArticleUrl, articleUrl: st.articleUrl, perex: st.subtext, t, accent: st.bgMode === "templateZena" ? ZENA : (st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto") ? ekonomAccent(t) : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
