@@ -2,9 +2,10 @@
 // Server-side (bez CORS). Frontend volá /api/fetch-feed?page=N (same-origin → connect-src 'self').
 
 const FEED_BASE = "https://www.aktualne.cz/rss";
-const ZENA_FEED = "https://zena.aktualne.cz/rss";
+const ZENA_FEED   = "https://zena.aktualne.cz/rss";
+const EKONOM_FEED = "https://ekonom.cz/?m=rss";
 const UA        = "Mozilla/5.0 (compatible; AktualnePostGenerator/1.0)";
-const ART_HOST  = /(^|\.)aktualne\.cz$/i;
+const ART_HOST  = /(^|\.)(aktualne\.cz|ekonom\.cz)$/i;
 
 function decode(s) {
   if (!s) return s;
@@ -24,8 +25,10 @@ export default async function handler(req, res) {
   let page = parseInt((req.query && req.query.page) || "1", 10);
   if (!Number.isFinite(page) || page < 1) page = 1;
   if (page > 50) page = 50; // pojistka
-  const base = (req.query && req.query.source) === "zena" ? ZENA_FEED : FEED_BASE;
-  const feedUrl = page <= 1 ? base : `${base}/?page=${page}`;
+  const source = (req.query && req.query.source) || "";
+  const base = source === "zena" ? ZENA_FEED : FEED_BASE;
+  // Ekonom feed nemá stránkování a používá jiný formát URL
+  const feedUrl = source === "ekonom" ? EKONOM_FEED : (page <= 1 ? base : `${base}/?page=${page}`);
 
   let xml;
   try {
