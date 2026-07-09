@@ -764,15 +764,16 @@ function ArticleLoader({ onLoad, t, mobile, source = "aktualne", accent: accentP
     }
   };
 
-  const toggleFeed = async () => {
-    const next = !feedOpen;
-    setFeedOpen(next);
-    if (next && feedItems.length === 0 && !feedLoading) {
+  // Feed se načítá automaticky při zobrazení (krok 1 workflow)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
       setFeedLoading(true);
       await fetchFeedPage(1, false);
-      setFeedLoading(false);
-    }
-  };
+      if (!cancelled) setFeedLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMore = async () => {
     if (feedMore) return;
@@ -812,6 +813,7 @@ function ArticleLoader({ onLoad, t, mobile, source = "aktualne", accent: accentP
 
   return (
     <div style={mkCard(t)}>
+      <div style={{ fontSize:10, fontWeight:700, color:t.textMuted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 }}>1 · Článek</div>
       <input type="url" value={url} onChange={e => setUrl(e.target.value)}
         onFocus={selectInput}
         onKeyDown={e => { if (e.key === "Enter") run(); }}
@@ -823,16 +825,11 @@ function ArticleLoader({ onLoad, t, mobile, source = "aktualne", accent: accentP
       </button>
       {msg && <div style={{ fontSize:11, color: msg.type === "err" ? "#d9534f" : t.textMuted, marginTop:6, lineHeight:1.4 }}>{msg.text}</div>}
 
-      <button onClick={toggleFeed}
-        style={{ background:"none", border:"none", color:accent, cursor:"pointer", fontSize:13, fontWeight:600, padding:0, marginTop:8, display:"flex", alignItems:"center", gap:5 }}>
-        <span style={{ fontSize:10, display:"inline-block", transform: feedOpen ? "rotate(90deg)" : "none", transition:"transform .15s" }}>▶</span>
-        Nejnovější články
-      </button>
-      {feedOpen && (
-        <div style={{ marginTop:6, maxHeight:300, overflowY:"auto", border:`1px solid ${t.borderLight}`, borderRadius:6 }}>
+      <div style={{ ...mkLbl(t), marginTop:10, marginBottom:4 }}>Nejnovější články</div>
+      <div style={{ maxHeight: feedOpen ? 320 : "none", overflowY: feedOpen ? "auto" : "visible", border:`1px solid ${t.borderLight}`, borderRadius:6 }}>
           {feedLoading && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Načítám feed…</div>}
           {feedErr && <div style={{ fontSize:11, color:"#d9534f", padding:"8px 10px" }}>{feedErr}</div>}
-          {!feedLoading && !feedErr && feedItems.map((it, i) => (
+          {!feedLoading && !feedErr && (feedOpen ? feedItems : feedItems.slice(0, 3)).map((it, i) => (
             <button key={i} onClick={() => pick(it.link)}
               onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(-1)}
               style={{ display:"block", width:"100%", textAlign:"left", border:"none", borderBottom: i < feedItems.length - 1 ? `1px solid ${t.borderLight}` : "none", cursor:"pointer", fontSize:13, lineHeight:1.35, padding:"8px 10px", transition:"background .15s, color .15s", background: hoveredIdx === i ? hoverBg : "transparent", color: hoveredIdx === i ? accent : t.textPrimary }}>
@@ -846,14 +843,19 @@ function ArticleLoader({ onLoad, t, mobile, source = "aktualne", accent: accentP
             </button>
           ))}
           {!feedLoading && !feedErr && feedItems.length === 0 && <div style={{ fontSize:11, color:t.textMuted, padding:"8px 10px" }}>Žádné články.</div>}
-          {!feedLoading && !feedErr && feedHasMore && (
+          {!feedLoading && !feedErr && feedItems.length > 3 && (
+            <button onClick={() => setFeedOpen(!feedOpen)}
+              style={{ display:"block", width:"100%", textAlign:"center", border:"none", borderTop:`1px solid ${t.borderLight}`, background:"transparent", color:accent, cursor:"pointer", fontSize:11, fontWeight:600, padding:"8px 10px" }}>
+              {feedOpen ? "▲ Zobrazit méně" : `▼ Další články (${feedItems.length - 3}${feedHasMore ? "+" : ""})`}
+            </button>
+          )}
+          {!feedLoading && !feedErr && feedOpen && feedHasMore && (
             <button onClick={loadMore} disabled={feedMore}
               style={{ display:"block", width:"100%", textAlign:"center", border:"none", borderTop:`1px solid ${t.borderLight}`, background:"transparent", color:accent, cursor: feedMore ? "default" : "pointer", fontSize:11, fontWeight:600, padding:"9px 10px", opacity: feedMore ? 0.6 : 1 }}>
               {feedMore ? "Načítám…" : "Načíst další"}
             </button>
           )}
         </div>
-      )}
     </div>
   );
 }
@@ -884,6 +886,7 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
   const isEkonomTpl = st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto";
   const brand  = st.brandTab || (st.bgMode === "templateZena" ? "zena" : isEkonomTpl ? "ekonom" : "aktualne");
   const accent = brand === "zena" ? ZENA : brand === "ekonom" ? ekonomAccent(t) : UI;
+  const [editOpen, setEditOpen] = useState(false);
   const switchBrand = (b) => {
     setBrandURL(b);
     set("brandTab", b);
@@ -907,6 +910,20 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
     <>
       <ArticleLoader key={brand} source={brand} onLoad={onLoadArticle} t={t} mobile={mobile}
         accent={accent} hoverBg={brand === "zena" ? "rgba(123,63,175,0.12)" : brand === "ekonom" ? (t.isDark ? "rgba(124,143,217,0.20)" : "rgba(41,48,90,0.12)") : t.advActiveBg} />
+      <div style={{ ...mkLbl(t), marginTop:12 }}>Titul</div>
+      <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+        {[["aktualne","Aktuálně"],["zena","Žena"],["ekonom","Ekonom"]].map(([b, lab]) => {
+          const bCol = b === "zena" ? ZENA : b === "ekonom" ? ekonomAccent(t) : UI;
+          return (
+            <button key={b} onClick={() => switchBrand(b)} style={{ ...mkBtn(brand === b, bCol, t), flex:1, fontSize:12, padding:"7px 0" }}>{lab}</button>
+          );
+        })}
+      </div>
+      <button onClick={() => setEditOpen(!editOpen)} style={{ width:"100%", marginTop:2, padding:"9px 10px", borderRadius:7, border:`1px solid ${editOpen ? accent : t.border}`, background: editOpen ? (t.isDark ? "rgba(255,255,255,0.04)" : t.advActiveBg) : t.bgAdvanced, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontWeight:600, color: editOpen ? accent : t.textSecondary }}>
+        <span>✏️ Upravit post (formát, texty, šablony)</span>
+        <span style={{ fontSize:10, display:"inline-block", transform: editOpen ? "rotate(180deg)" : "none", transition:"transform .2s" }}>▼</span>
+      </button>
+      {editOpen && (<>
       <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
@@ -947,15 +964,6 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
           <input type="text" value={st.photoCredit} onChange={e => set("photoCredit", e.target.value)} placeholder="Jméno / agentura…" style={mkInp(t, mobile)} />
         </>
       )}
-      <div style={{ ...mkLbl(t), marginTop:14 }}>Titul</div>
-      <div style={{ display:"flex", gap:6, marginBottom:8 }}>
-        {[["aktualne","Aktuálně"],["zena","Žena"],["ekonom","Ekonom"]].map(([b, lab]) => {
-          const bCol = b === "zena" ? ZENA : b === "ekonom" ? ekonomAccent(t) : UI;
-          return (
-            <button key={b} onClick={() => switchBrand(b)} style={{ ...mkBtn(brand === b, bCol, t), flex:1, fontSize:12, padding:"7px 0" }}>{lab}</button>
-          );
-        })}
-      </div>
       <div style={mkLbl(t)}>Pozadí / šablona</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
         {brand === "aktualne" && <>
@@ -1008,6 +1016,7 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
       {st.bgMode === "templateEkonomRich" && <EkonomRichControls onImageUpload={onImageUpload} t={t} />}
       {st.bgMode === "templateEkonomFoto" && <EkonomFotoControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} />}
       <AdvancedSettings st={st} dispatch={dispatch} t={t} mobile={mobile} />
+      </>)}
     </>
   );
 }
@@ -1044,7 +1053,7 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, articleUrl, perex, mobile, t, accent = UI }) {
+function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNewPost, articleUrl, perex, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
   const [copied, setCopied]     = useState(null); // null | "ok" | "err"
   const [allBusy, setAllBusy]   = useState(false);
@@ -1087,10 +1096,11 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, artic
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
       <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
       <button onClick={handleCopy} style={{ ...mkBtn(true, accent, t), width:"100%", fontSize:fz, padding:pad }}>
-        {copied === "ok" ? "Zkopírováno ✓" : copied === "err" ? "Nepodporováno" : "Kopírovat do schránky"}
+        {copied === "ok" ? "Obrázek zkopírován ✓" : copied === "err" ? "Nepodporováno" : "2 · Kopírovat obrázek"}
       </button>
       {showShare && (
         <div style={{ border:`1px solid ${t.borderLight}`, borderRadius:7, padding:"8px 10px", background:t.bgAdvanced }}>
+          <div style={{ fontSize:10, fontWeight:700, color:t.textMuted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>3 · Text postu</div>
           {share.status === "loading" && <div style={{ fontSize:11, color:t.textMuted }}>Zkracuji odkaz…</div>}
           {share.status !== "loading" && (
             <>
@@ -1102,8 +1112,13 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, artic
                 ) : (
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
                 )}
-                <span style={{ fontSize:11, fontWeight:600 }}>{shareCopied ? "Zkopírováno" : "Kopírovat"}</span>
+                <span style={{ fontSize:11, fontWeight:600 }}>{shareCopied ? "Zkopírováno" : "Kopírovat text"}</span>
               </button>
+              {shareCopied && (
+                <button onClick={onNewPost} style={{ ...mkBtn(true, accent, t), width:"100%", marginTop:8, padding:"8px 0", fontSize:12 }}>
+                  ✓ Hotovo — začít nový post
+                </button>
+              )}
             </>
           )}
         </div>
@@ -1497,7 +1512,7 @@ export default function App() {
   const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, onShorten: shortenArticleUrl, articleUrl: st.articleUrl, perex: st.subtext, t, accent: st.bgMode === "templateZena" ? ZENA : (st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto") ? ekonomAccent(t) : UI };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onNewPost: doReset, onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, onShorten: shortenArticleUrl, articleUrl: st.articleUrl, perex: st.subtext, t, accent: st.bgMode === "templateZena" ? ZENA : (st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto") ? ekonomAccent(t) : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
