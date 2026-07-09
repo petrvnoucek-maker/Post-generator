@@ -41,6 +41,7 @@ const DEFAULTS = {
   richVariant: "dark", richPhotoPos: "top", richPanelColor: "#1B69BF",
   zenaOverlay: "light", zenaOverlayOpacity: 0.85,
   ekonomOverlayOpacity: 0.9,
+  brandTab: "aktualne",
   fmt: FORMATS[0], advancedOpen: false, cropRect: null,
 };
 
@@ -69,8 +70,29 @@ function useDarkMode() {
 }
 
 // ── Reducer ───────────────────────────────────────────────────────────────────
+// ── URL routing tabů (záložkovatelné adresy) ─────────────────────────────────
+// ?titul=zena | ?titul=ekonom | bez parametru = Aktuálně
+function brandFromURL() {
+  if (typeof window === "undefined") return "aktualne";
+  const p = new URLSearchParams(window.location.search).get("titul");
+  return p === "zena" || p === "ekonom" ? p : "aktualne";
+}
+function brandDefaults(b) {
+  if (b === "zena")   return { brandTab:"zena",     bgMode:"templateZena",       fontFamily:"Inter" };
+  if (b === "ekonom") return { brandTab:"ekonom",   bgMode:"templateEkonomRich", fontFamily:"Work Sans" };
+  return { brandTab:"aktualne", bgMode:"template3", fontFamily:"Inter" };
+}
+function initialState() {
+  return { ...DEFAULTS, ...brandDefaults(brandFromURL()) };
+}
+function setBrandURL(b) {
+  if (typeof window === "undefined") return;
+  const url = b === "aktualne" ? window.location.pathname : `${window.location.pathname}?titul=${b}`;
+  window.history.replaceState(null, "", url);
+}
+
 function reducer(state, action) {
-  if (action.type === "RESET") return { ...DEFAULTS };
+  if (action.type === "RESET") return initialState();
   if (action.type === "SET")   return { ...state, [action.key]: action.value };
   return state;
 }
@@ -700,10 +722,10 @@ function AutoTextarea({ value, onChange, onFocus, placeholder, minHeight, t, mob
   );
 }
 
-function ArticleLoader({ onLoad, t, mobile, isZena, accent: accentProp, hoverBg: hoverBgProp }) {
-  const accent  = accentProp || (isZena ? ZENA : UI);
-  const hoverBg = hoverBgProp || (isZena ? "rgba(123,63,175,0.12)" : t.advActiveBg);
-  const hint    = isZena ? "https://zena.aktualne.cz/…" : "https://zpravy.aktualne.cz/…";
+function ArticleLoader({ onLoad, t, mobile, source = "aktualne", accent: accentProp, hoverBg: hoverBgProp }) {
+  const accent  = accentProp || UI;
+  const hoverBg = hoverBgProp || t.advActiveBg;
+  const hint    = source === "zena" ? "https://zena.aktualne.cz/…" : source === "ekonom" ? "https://ekonom.cz/…" : "https://zpravy.aktualne.cz/…";
   const [url, setUrl]         = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg]         = useState(null); // { type:"err"|"ok", text }
@@ -729,7 +751,7 @@ function ArticleLoader({ onLoad, t, mobile, isZena, accent: accentProp, hoverBg:
 
   const fetchFeedPage = async (page, append) => {
     try {
-      const resp = await fetch(`/api/fetch-feed?page=${page}${isZena ? "&source=zena" : ""}`);
+      const resp = await fetch(`/api/fetch-feed?page=${page}${source !== "aktualne" ? `&source=${source}` : ""}`);
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) { setFeedErr(data.error || `Chyba ${resp.status}.`); return; }
       setFeedErr(null);
@@ -768,7 +790,7 @@ function ArticleLoader({ onLoad, t, mobile, isZena, accent: accentProp, hoverBg:
   useEffect(() => {
     const onDocPaste = (e) => {
       const txt = (e.clipboardData && e.clipboardData.getData("text") || "").trim();
-      if (/aktualne\.cz\//i.test(txt)) { e.preventDefault(); runRef.current(txt); }
+      if (/(aktualne|ekonom)\.cz\//i.test(txt)) { e.preventDefault(); runRef.current(txt); }
     };
     document.addEventListener("paste", onDocPaste);
     return () => document.removeEventListener("paste", onDocPaste);
@@ -859,7 +881,16 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
   const set = (key, val) => dispatch({ type:"SET", key, value:val });
   const B   = active => mkBtn(active, UI, t);
   const isEkonomTpl = st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto";
-  const accent = st.bgMode === "templateZena" ? ZENA : isEkonomTpl ? ekonomAccent(t) : UI;
+  const brand  = st.brandTab || (st.bgMode === "templateZena" ? "zena" : isEkonomTpl ? "ekonom" : "aktualne");
+  const accent = brand === "zena" ? ZENA : brand === "ekonom" ? ekonomAccent(t) : UI;
+  const switchBrand = (b) => {
+    setBrandURL(b);
+    set("brandTab", b);
+    set("fontFamily", b === "ekonom" ? "Work Sans" : "Inter");
+    if (b === "aktualne") { set("bgMode","template3"); set("richPhotoPos","top"); set("richVariant","dark"); set("logoVariant","blue"); }
+    else if (b === "zena")   set("bgMode","templateZena");
+    else if (b === "ekonom") set("bgMode","templateEkonomRich");
+  };
   const [perexCopied, setPerexCopied] = useState(false);
   const copyPerex = async () => {
     const perex = (st.subtext || "").trim();
@@ -873,8 +904,8 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
   const isPhotoMode = st.bgMode === "template3" || (st.bgMode === "custom" && st.customSub === "image") || st.bgMode === "templateZena" || isEkonomTpl;
   return (
     <>
-      <ArticleLoader key={st.bgMode === "templateZena" ? "zena" : "default"} onLoad={onLoadArticle} t={t} mobile={mobile} isZena={st.bgMode === "templateZena"}
-        accent={accent} hoverBg={st.bgMode === "templateZena" ? "rgba(123,63,175,0.12)" : isEkonomTpl ? (t.isDark ? "rgba(124,143,217,0.20)" : "rgba(41,48,90,0.12)") : t.advActiveBg} />
+      <ArticleLoader key={brand} source={brand} onLoad={onLoadArticle} t={t} mobile={mobile}
+        accent={accent} hoverBg={brand === "zena" ? "rgba(123,63,175,0.12)" : brand === "ekonom" ? (t.isDark ? "rgba(124,143,217,0.20)" : "rgba(41,48,90,0.12)") : t.advActiveBg} />
       <div style={mkLbl(t)}>Formát</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
         {FORMATS.map(f => (
@@ -915,8 +946,18 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
           <input type="text" value={st.photoCredit} onChange={e => set("photoCredit", e.target.value)} placeholder="Jméno / agentura…" style={mkInp(t, mobile)} />
         </>
       )}
-      <div style={{ ...mkLbl(t), marginTop:14 }}>Pozadí / šablona</div>
+      <div style={{ ...mkLbl(t), marginTop:14 }}>Titul</div>
+      <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+        {[["aktualne","Aktuálně"],["zena","Žena"],["ekonom","Ekonom"]].map(([b, lab]) => {
+          const bCol = b === "zena" ? ZENA : b === "ekonom" ? ekonomAccent(t) : UI;
+          return (
+            <button key={b} onClick={() => switchBrand(b)} style={{ ...mkBtn(brand === b, bCol, t), flex:1, fontSize:12, padding:"7px 0" }}>{lab}</button>
+          );
+        })}
+      </div>
+      <div style={mkLbl(t)}>Pozadí / šablona</div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:6 }}>
+        {brand === "aktualne" && <>
         <button onClick={() => { set("bgMode","template2"); set("logoVariant","blue"); set("fontFamily","Inter"); }} style={tplBtn(st.bgMode,"template2",t)}>
           <span style={{ width:48, height:28, borderRadius:3, background:"#000", border:"2px solid #1B69BF", display:"block" }} /><span style={{ fontSize:10 }}>Černá</span>
         </button>
@@ -931,6 +972,8 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
         <button onClick={() => { set("bgMode","custom"); set("customSub","image"); set("logoVariant","blue"); set("fontFamily","Inter"); }} style={tplBtn(st.bgMode,"custom",t)}>
           <span style={{ width:48, height:28, borderRadius:3, background:"conic-gradient(red,yellow,lime,cyan,blue,magenta,red)", display:"block" }} /><span style={{ fontSize:10 }}>Vlastní</span>
         </button>
+        </>}
+        {brand === "zena" && <>
         <button onClick={() => { set("bgMode","templateZena"); set("fontFamily","Inter"); }} style={tplBtn(st.bgMode,"templateZena",t)}>
           <span style={{ width:48, height:28, borderRadius:3, position:"relative", overflow:"hidden", display:"block", background:"#888" }}>
             <span style={{ position:"absolute", bottom:0, left:0, right:0, height:"65%", background:"linear-gradient(to bottom, transparent, rgba(78,35,130,0.92))" }} />
@@ -938,6 +981,8 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
           </span>
           <span style={{ fontSize:10 }}>Žena.cz</span>
         </button>
+        </>}
+        {brand === "ekonom" && <>
         <button onClick={() => { set("bgMode","templateEkonomRich"); set("fontFamily","Work Sans"); }} style={tplBtn(st.bgMode,"templateEkonomRich",t)}>
           <span style={{ width:48, height:28, borderRadius:3, overflow:"hidden", display:"flex", flexDirection:"column", background:"#fff" }}>
             <span style={{ flex:"0 0 55%", background:"#aaa" }} />
@@ -954,6 +999,7 @@ function Controls({ st, dispatch, onImageUpload, onLoadArticle, autoResize, sele
           </span>
           <span style={{ fontSize:10 }}>Ekonom foto</span>
         </button>
+        </>}
       </div>
       {st.bgMode === "template3"    && <RichControls   st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
       {st.bgMode === "custom"       && <CustomControls st={st} dispatch={dispatch} onImageUpload={onImageUpload} t={t} mobile={mobile} />}
@@ -1143,7 +1189,7 @@ function CropModal({ img, cropW, cropH, initialCrop, onConfirm, onCancel }) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [st, dispatch]                  = useReducer(reducer, DEFAULTS);
+  const [st, dispatch]                  = useReducer(reducer, null, initialState);
   const [confirmReset, setConfirmReset] = useState(false);
   const [isMobile, setIsMobile]         = useState(false);
   const [cropOpen, setCropOpen]         = useState(false);
