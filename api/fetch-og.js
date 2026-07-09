@@ -6,8 +6,8 @@
 // data: URL je povolen CSP (img-src data:) a nezašpiní canvas → export PNG funguje.
 // Jediný požadavek na CSP: connect-src musí povolit 'self'.
 
-const ARTICLE_HOST = /(^|\.)aktualne\.cz$/i;
-const IMG_HOST     = /(^|\.)(aktualne\.cz|eco-files\.cz|xsd\.cz)$/i;
+const ARTICLE_HOST = /(^|\.)(aktualne\.cz|ekonom\.cz)$/i;
+const IMG_HOST     = /(^|\.)(aktualne\.cz|ekonom\.cz|eco-files\.cz|xsd\.cz|ihned\.cz)$/i;
 const UA           = "Mozilla/5.0 (compatible; AktualnePostGenerator/1.0)";
 const MAX_IMG_BYTES = 8 * 1024 * 1024;
 
@@ -44,7 +44,7 @@ function metaContent(html, attr, val) {
 
 function stripSite(t) {
   if (!t) return t;
-  return t.replace(/\s*[|\u2013-]\s*Aktuálně\.cz\s*$/i, "").trim();
+  return t.replace(/\s*[|\u2013-]\s*(Aktuálně\.cz|Ekonom(\.cz)?)\s*$/i, "").trim();
 }
 
 // JSON-LD: kredit hlavní fotky z NewsArticle.image.creditText.
@@ -104,7 +104,19 @@ export default async function handler(req, res) {
       redirect: "follow",
     }, 8000);
     if (!r.ok) return res.status(502).json({ error: `Článek nelze načíst (HTTP ${r.status}).` });
-    html = await r.text();
+    const buf = Buffer.from(await r.arrayBuffer());
+    // Charset z hlavičky nebo <meta> – ekonom.cz servíruje windows-1250, aktualne.cz UTF-8
+    let charset = "utf-8";
+    const ctHeader = r.headers.get("content-type") || "";
+    const hm = ctHeader.match(/charset=([\w-]+)/i);
+    if (hm) charset = hm[1].toLowerCase();
+    else {
+      const head = buf.slice(0, 2048).toString("latin1");
+      const mm = head.match(/<meta[^>]*charset=["']?([\w-]+)/i);
+      if (mm) charset = mm[1].toLowerCase();
+    }
+    try { html = new TextDecoder(charset).decode(buf); }
+    catch { html = buf.toString("utf-8"); }
   } catch (e) {
     const timeout = e && e.name === "AbortError";
     return res.status(502).json({ error: timeout ? "Server aktualne.cz odpovídal příliš dlouho." : "Článek se nepodařilo stáhnout." });
@@ -135,7 +147,7 @@ export default async function handler(req, res) {
   if (!credit) credit = extractJsonLdCredit(html);
   // fallback kreditu z textu "Foto: …"
   if (!credit) {
-    const fc = html.match(/Foto:\s*([^<\n]{1,80})/);
+    const fc = html.match(/Foto:\s*([^<\n")]{1,80})/);
     if (fc) credit = decode(fc[1]).trim();
   }
 
