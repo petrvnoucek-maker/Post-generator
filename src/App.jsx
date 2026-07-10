@@ -710,7 +710,7 @@ function ZenaControls({ st, dispatch, onImageUpload, t }) {
   );
 }
 
-function AutoTextarea({ value, onChange, onFocus, placeholder, minHeight, t, mobile }) {
+function AutoTextarea({ value, onChange, onFocus, placeholder, minHeight, t, mobile, style: styleOverride }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const el = ref.current; if (!el) return;
@@ -719,7 +719,7 @@ function AutoTextarea({ value, onChange, onFocus, placeholder, minHeight, t, mob
   }, [value, minHeight, mobile]);
   return (
     <textarea ref={ref} value={value} onChange={onChange} onFocus={onFocus} placeholder={placeholder}
-      style={{ ...mkInp(t, mobile), minHeight, resize:"none", overflow:"hidden" }} />
+      style={{ ...mkInp(t, mobile), minHeight, resize:"none", overflow:"hidden", ...styleOverride }} />
   );
 }
 
@@ -1053,24 +1053,37 @@ function Preview({ canvasRef, fmt, t, onImageUpload, onOpenCrop, bgMode, customS
   );
 }
 
-function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNewPost, articleUrl, perex, mobile, t, accent = UI }) {
+function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNewPost, articleUrl, perex, useShortener = true, mobile, t, accent = UI }) {
   const pad = `${mobile ? 12 : 10}px 0`, fz = mobile ? 14 : 13;
   const [copied, setCopied]     = useState(null); // null | "ok" | "err"
   const [allBusy, setAllBusy]   = useState(false);
   const [share, setShare]       = useState(null); // { forUrl, status:"loading"|"ok"|"err", shortlink?, error? }
+  const [shareText, setShareText] = useState("");  // editovatelný text postu
   const [shareCopied, setShareCopied] = useState(false);
+
+  const composeText = (link) => `👉 ${link}${(perex || "").trim() ? " " + perex.trim() : ""}`;
 
   const handleCopy = async () => {
     const ok = await onCopy();
     setCopied(ok ? "ok" : "err");
     setTimeout(() => setCopied(null), 1800);
-    // Po zkopírování fotky připrav sdílecí text: zkrácený odkaz + perex
+    // Po zkopírování fotky připrav sdílecí text: odkaz + perex
     if (articleUrl) {
+      if (!useShortener) {
+        // Ekonom nemá zkracovač – použij plnou adresu článku
+        setShare({ forUrl: articleUrl, status: "ok", shortlink: articleUrl });
+        setShareText(composeText(articleUrl));
+        return;
+      }
       setShare({ forUrl: articleUrl, status: "loading" });
       const r = await onShorten();
-      setShare(r.ok
-        ? { forUrl: articleUrl, status: "ok",  shortlink: r.shortlink }
-        : { forUrl: articleUrl, status: "err", error: r.error });
+      if (r.ok) {
+        setShare({ forUrl: articleUrl, status: "ok", shortlink: r.shortlink });
+        setShareText(composeText(r.shortlink));
+      } else {
+        setShare({ forUrl: articleUrl, status: "err", error: r.error, shortlink: articleUrl });
+        setShareText(composeText(articleUrl));
+      }
     }
   };
   const handleAll = () => {
@@ -1079,22 +1092,18 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNew
     onExportAll();
     setTimeout(() => setAllBusy(false), 1600);
   };
-  // Text sdílecího pole: 👉 zkrácený odkaz + perex (fallback na plnou URL při chybě zkracovače)
-  const shareLink = share && (share.status === "ok" ? share.shortlink : share.status === "err" ? share.forUrl : null);
-  const shareText = shareLink ? `👉 ${shareLink}${(perex || "").trim() ? " " + perex.trim() : ""}` : "";
   const showShare = share && share.forUrl === articleUrl; // skryj po resetu / načtení jiného článku
   const copyShare = async () => {
-    if (!shareText || !navigator.clipboard) return;
+    if (!shareText.trim() || !navigator.clipboard) return;
     try {
       await navigator.clipboard.writeText(shareText);
       setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 1400);
+      setTimeout(() => setShareCopied(false), 1600);
     } catch { /* ignore */ }
   };
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8, ...(!mobile && { marginTop:16, paddingTop:14, borderTop:`1px solid ${t.borderLight}` }) }}>
-      <button onClick={onReset}  style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:fz, padding:pad }}>Začít znovu</button>
       <button onClick={handleCopy} style={{ ...mkBtn(true, accent, t), width:"100%", fontSize:fz, padding:pad }}>
         {copied === "ok" ? "Obrázek zkopírován ✓" : copied === "err" ? "Nepodporováno" : "2 · Kopírovat obrázek"}
       </button>
@@ -1104,18 +1113,17 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNew
           {share.status === "loading" && <div style={{ fontSize:11, color:t.textMuted }}>Zkracuji odkaz…</div>}
           {share.status !== "loading" && (
             <>
-              <div style={{ fontSize:12, color:t.textPrimary, lineHeight:1.45, wordBreak:"break-word", whiteSpace:"pre-wrap" }}>{shareText}</div>
+              <a href={share.shortlink} target="_blank" rel="noopener noreferrer"
+                style={{ display:"inline-block", fontSize:12, fontWeight:600, color:accent, textDecoration:"underline", wordBreak:"break-all", marginBottom:6 }}>
+                {share.shortlink}
+              </a>
+              <AutoTextarea value={shareText} onChange={e => setShareText(e.target.value)} minHeight={64} t={t} mobile={mobile} style={{ fontSize: mobile ? 16 : 14, lineHeight: 1.5 }} />
               {share.status === "err" && <div style={{ fontSize:10, color:"#d9534f", marginTop:4 }}>Zkrácení selhalo ({share.error}) – použita plná adresa.</div>}
-              <button onClick={copyShare} style={{ display:"flex", alignItems:"center", gap:4, background:"none", border:"none", padding:"4px 0 0", cursor:"pointer", color: shareCopied ? "#2e9e5b" : accent }}>
-                {shareCopied ? (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                ) : (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
-                )}
-                <span style={{ fontSize:11, fontWeight:600 }}>{shareCopied ? "Zkopírováno" : "Kopírovat text"}</span>
+              <button onClick={copyShare} style={{ ...mkBtn(true, accent, t), width:"100%", marginTop:8, padding:"9px 0", fontSize:13, background: shareCopied ? "#2e9e5b" : undefined, ...(shareCopied ? { background:"#2e9e5b", color:"#fff" } : {}) }}>
+                {shareCopied ? "Zkopírováno ✓" : "3 · Kopírovat text"}
               </button>
               {shareCopied && (
-                <button onClick={onNewPost} style={{ ...mkBtn(true, accent, t), width:"100%", marginTop:8, padding:"8px 0", fontSize:12 }}>
+                <button onClick={onNewPost} style={{ ...mkBtn(false, accent, t), width:"100%", marginTop:8, padding:"8px 0", fontSize:12 }}>
                   ✓ Hotovo — začít nový post
                 </button>
               )}
@@ -1130,6 +1138,7 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNew
         </button>
       </div>
       <div style={{ fontSize:10, color:t.textFaint, textAlign:"center" }}>{fmt.w} × {fmt.h} px</div>
+      <button onClick={onReset} style={{ ...mkBtn(false, UI, t), width:"100%", fontSize:12, padding:"8px 0" }}>Začít znovu</button>
     </div>
   );
 }
@@ -1512,7 +1521,7 @@ export default function App() {
   const hasImage      = !!imgRef.current;
   const controlsProps = { st, dispatch, onImageUpload: handleImageUpload, onLoadArticle: loadFromArticle, autoResize, selectAll, t, mobile: isMobile };
   const previewProps  = { canvasRef, fmt: st.fmt, t, onImageUpload: handleImageUpload, onOpenCrop: () => setCropOpen(true), bgMode: st.bgMode, customSub: st.customSub, hasImage };
-  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onNewPost: doReset, onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, onShorten: shortenArticleUrl, articleUrl: st.articleUrl, perex: st.subtext, t, accent: st.bgMode === "templateZena" ? ZENA : (st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto") ? ekonomAccent(t) : UI };
+  const actionsProps  = { fmt: st.fmt, onReset: () => setConfirmReset(true), onNewPost: doReset, onExport: exportAs, onExportAll: exportAllFormats, onCopy: copyToClipboard, onShorten: shortenArticleUrl, articleUrl: st.articleUrl, perex: st.subtext, useShortener: st.brandTab !== "ekonom", t, accent: st.bgMode === "templateZena" ? ZENA : (st.bgMode === "templateEkonomRich" || st.bgMode === "templateEkonomFoto") ? ekonomAccent(t) : UI };
 
   return (
     <div style={{ fontFamily:"Inter, system-ui, sans-serif", background:t.bgMain, minHeight:"100vh", color:t.textPrimary }}>
