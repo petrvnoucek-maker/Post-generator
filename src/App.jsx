@@ -1059,7 +1059,8 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNew
   const [allBusy, setAllBusy]   = useState(false);
   const [share, setShare]       = useState(null); // { forUrl, status:"loading"|"ok"|"err", shortlink?, error? }
   const [shareText, setShareText] = useState("");  // editovatelný text postu
-  const [shareCopied, setShareCopied] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);      // krátká zelená potvrzovací fáze
+  const [shareWasCopied, setShareWasCopied] = useState(false); // trvalé – drží tlačítko "Hotovo"
 
   const composeText = (link) => `👉 ${link}${(perex || "").trim() ? " " + perex.trim() : ""}`;
 
@@ -1069,6 +1070,7 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNew
     setTimeout(() => setCopied(null), 1800);
     // Po zkopírování fotky připrav sdílecí text: odkaz + perex
     if (articleUrl) {
+      setShareWasCopied(false);
       if (!useShortener) {
         // Ekonom nemá zkracovač – použij plnou adresu článku
         setShare({ forUrl: articleUrl, status: "ok", shortlink: articleUrl });
@@ -1098,6 +1100,7 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNew
     try {
       await navigator.clipboard.writeText(shareText);
       setShareCopied(true);
+      setShareWasCopied(true);
       setTimeout(() => setShareCopied(false), 1600);
     } catch { /* ignore */ }
   };
@@ -1113,16 +1116,17 @@ function Actions({ fmt, onReset, onExport, onExportAll, onCopy, onShorten, onNew
           {share.status === "loading" && <div style={{ fontSize:11, color:t.textMuted }}>Zkracuji odkaz…</div>}
           {share.status !== "loading" && (
             <>
+              <div style={{ fontSize:10, fontWeight:600, color:t.textMuted, marginBottom:2 }}>{useShortener ? "Zkrácený odkaz" : "Odkaz na článek"}</div>
               <a href={share.shortlink} target="_blank" rel="noopener noreferrer"
                 style={{ display:"inline-block", fontSize:12, fontWeight:600, color:accent, textDecoration:"underline", wordBreak:"break-all", marginBottom:6 }}>
                 {share.shortlink}
               </a>
               <AutoTextarea value={shareText} onChange={e => setShareText(e.target.value)} minHeight={64} t={t} mobile={mobile} style={{ fontSize: mobile ? 16 : 14, lineHeight: 1.5 }} />
               {share.status === "err" && <div style={{ fontSize:10, color:"#d9534f", marginTop:4 }}>Zkrácení selhalo ({share.error}) – použita plná adresa.</div>}
-              <button onClick={copyShare} style={{ ...mkBtn(true, accent, t), width:"100%", marginTop:8, padding:"9px 0", fontSize:13, background: shareCopied ? "#2e9e5b" : undefined, ...(shareCopied ? { background:"#2e9e5b", color:"#fff" } : {}) }}>
+              <button onClick={copyShare} style={{ ...mkBtn(true, accent, t), width:"100%", marginTop:8, padding:"9px 0", fontSize:13, ...(shareCopied ? { background:"#2e9e5b", color:"#fff" } : {}) }}>
                 {shareCopied ? "Zkopírováno ✓" : "3 · Kopírovat text"}
               </button>
-              {shareCopied && (
+              {shareWasCopied && (
                 <button onClick={onNewPost} style={{ ...mkBtn(false, accent, t), width:"100%", marginTop:8, padding:"8px 0", fontSize:12 }}>
                   ✓ Hotovo — začít nový post
                 </button>
